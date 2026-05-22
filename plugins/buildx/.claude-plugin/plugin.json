@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "buildx",
+  "displayName": "buildx",
+  "description": "Orchestrator agent for end-to-end software delivery, plus the analyst / architect / test-designer / developer specialists, the development-documentation skill, and the .NET / ASP.NET Core / Playwright knowledge bundle.",
+  "author": {
+    "name": "a3.diaz",
+    "email": "a3.diaz@outlook.com"
+  },
+  "license": "MIT",
+  "keywords": ["orchestrator", "agents", "dotnet", "aspnet-core", "playwright", "development", "documentation"]
+}
