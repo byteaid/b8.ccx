@@ -79,7 +79,7 @@ public override BrowserNewContextOptions ContextOptions() => new()
     TimezoneId = "America/Mexico_City",
     ColorScheme = ColorScheme.Light,
     ReducedMotion = ReducedMotion.Reduce,
-    RecordVideoDir = Path.Combine(TestContext.TestRunResultsDirectory ?? ".", "videos"),
+    RecordVideoDir = Path.Combine(TestArtifacts.RunDir(TestContext), "videos"),
     RecordVideoSize = new() { Width = 1280, Height = 800 },
 };
 ```
@@ -190,7 +190,7 @@ Or pass it explicitly: `dotnet test --settings .runsettings`.
 
 ## Aspire integration (NOT here)
 
-The `[AssemblyInitialize]` fixture that builds `DistributedApplication`, the `ContextOptions().BaseURL = app.GetEndpoint("web")` override, and `WaitForResourceHealthyAsync` live in `dotnet-aspire` § playwright-testing. This skill covers only the Playwright API.
+The per-class `[ClassInitialize]` mount that builds `DistributedApplication`, the `ContextOptions().BaseURL = _baseUrl` override (captured from `_app.GetEndpoint("web")` after `WaitForResourceHealthyAsync`), and the `TestArtifacts` helper live in `dotnet-aspire` § playwright-testing and `dotnet-testing` § mstest-integration. This skill covers only the Playwright API.
 
 ## Recent changes (1.40 → 1.51)
 

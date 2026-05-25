@@ -35,6 +35,10 @@ Enforcement
 | Third-party mappers / mediators — Mapperly, MediatR, Mediator (martinothamar), Mapster, Brighter — banned alongside AutoMapper | [no-automapper-no-mediatr.md](no-automapper-no-mediatr.md) |
 | Editing test files outside the testing scope (pointer; full ban in `dotnet-testing`) | [no-touching-test-files.md](no-touching-test-files.md) |
 | Touching the AppHost or ServiceDefaults from a non-engineer agent | [no-touching-apphost-from-consumer.md](no-touching-apphost-from-consumer.md) |
+| Try/catch that does no real work (and missing global try/catch at the app-layer entry point) | [try-catch-must-do-work.md](try-catch-must-do-work.md) |
+| Static / manual bypass of the DI motor (statics, service locator, manual `new` of registered types, `Activator.CreateInstance`) | [no-static-bypass-of-di.md](no-static-bypass-of-di.md) |
+| Duplicate / ambiguous models, services, helpers (search-before-create discipline) | [no-duplicate-or-ambiguous-models.md](no-duplicate-or-ambiguous-models.md) |
+| Deviation from the official hexagonal architecture (wrong project, concrete-adapter dependency, broken dependency-flow invariant) | [no-architecture-deviation.md](no-architecture-deviation.md) |
 
 ## See also
 

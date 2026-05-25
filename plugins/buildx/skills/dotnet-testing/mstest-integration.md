@@ -57,13 +57,8 @@ public class Orders_Tests
         Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
     }
 
-    private static string ResolveLogsDir(TestContext context)
-    {
-        var runDir = Environment.GetEnvironmentVariable("BLAZTRAP_TEST_RUN_DIR")
-                     ?? context.TestRunDirectory
-                     ?? Path.Combine(AppContext.BaseDirectory, "TestResults");
-        return Path.Combine(runDir, "logs");
-    }
+    private static string ResolveLogsDir(TestContext context) =>
+        Path.Combine(TestArtifacts.RunDir(context), "logs");
 }
 ```
 
@@ -111,52 +106,79 @@ _app = await appHost.BuildAsync();
 
 It works identically in `aspire run` and inside `DistributedApplicationTestingBuilder`. The `dotnet-aspire` skill § file-logging owns the integration's plumbing; this skill only consumes it.
 
-## Test artefacts — `TestResults/{run-id}/...`
+## Test artefacts — `TestResults/{run-id}/...` and `TestResults/.auth/`
 
-Every artefact (logs, screenshots, trx, coverage) lands under a deterministic root resolved as:
+Two paths matter:
+
+| Kind | Path | Lifetime | Resolved from |
+|---|---|---|---|
+| **Per-run transients** (logs, traces, screenshots, video, trx, coverage) | `TestResults/{run-id}/...` | One run | `TestContext.TestRunResultsDirectory` |
+| **Shared auth state** (`{role}-state.json`) | `TestResults/.auth/` | Across runs | `Path.GetDirectoryName(TestContext.TestRunDirectory)` + `/.auth/` |
+
+There is **no `BLAZTRAP_TEST_RUN_DIR` env var** — MSTest's `TestContext` is the single source of truth. Orchestrators that need a deterministic run folder pass `--results-directory` to `dotnet test` and let MSTest place its run subfolder there.
+
+Canonical helper — put it in `Company.Product.Test/TestArtifacts.cs`, reuse from every fixture:
 
 ```csharp
-var runDir = Environment.GetEnvironmentVariable("BLAZTRAP_TEST_RUN_DIR")
-             ?? context.TestRunDirectory
-             ?? Path.Combine(AppContext.BaseDirectory, "TestResults");
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace Acme.Inventory.Test;
+
+internal static class TestArtifacts
+{
+    /// <summary>Per-run transient root. New folder per `dotnet test` invocation.</summary>
+    public static string RunDir(TestContext context) =>
+        context.TestRunResultsDirectory
+        ?? Path.Combine(AppContext.BaseDirectory, "TestResults");
+
+    /// <summary>Shared auth-state root. Sibling of every per-run folder.</summary>
+    public static string AuthDir(TestContext context)
+    {
+        var runDir = context.TestRunDirectory;
+        if (runDir is null)
+            return Path.Combine(AppContext.BaseDirectory, "TestResults", ".auth");
+        var dir = Path.GetDirectoryName(runDir)!; // .../TestResults
+        var path = Path.Combine(dir, ".auth");
+        Directory.CreateDirectory(path);
+        return path;
+    }
+}
 ```
 
-| Source | When it wins |
-|---|---|
-| `BLAZTRAP_TEST_RUN_DIR` | Set by orchestration agents that bookkeep runs (each run claims a folder under `<repo>/TestResults/{NNN}/`). |
-| `TestContext.TestRunDirectory` | MSTest's per-run scratch dir (`TestResults/Deploy_<user>_<timestamp>/`) when `dotnet test` runs without orchestration. |
-| `AppContext.BaseDirectory` | Last-resort fallback for ad-hoc dev runs. |
-
-Suggested layout under `{runDir}/`:
+Layout once a run produces artefacts:
 
 ```
-TestResults/042/
-  logs/
-    apphost.log
-    api.log
-    worker.log
-    partner-stub.log
-  trx/
-    Acme.Inventory.Test.trx
-  screenshots/
-  coverage/coverage.cobertura.xml
+TestResults/
+  .auth/
+    user-state.json          ← reused across runs
+    admin-state.json
+  Deploy_user_20260524-153012/
+    In/MACHINE/              ← TestRunResultsDirectory
+      logs/
+        apphost.log
+        api.log
+        worker.log
+        partner-stub.log
+      playwright/
+        trace-<TestName>.zip
+        <TestName>.png
+      screenshots/
+      coverage/coverage.cobertura.xml
+    TestResults/             ← TestRunDirectory
+      Acme.Inventory.Test.trx
 ```
 
-Wiring trx + coverage to the same root:
+Wiring trx + coverage to the same root (no env var — pass `--results-directory` explicitly):
 
 ```powershell
 dotnet test `
   --logger "trx;LogFileName=Acme.Inventory.Test.trx" `
-  --results-directory $env:BLAZTRAP_TEST_RUN_DIR/trx `
+  --results-directory ./TestResults `
   --collect:"XPlat Code Coverage" `
   -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 ```
 
-Without orchestration:
-
-```powershell
-dotnet test --logger trx --results-directory ./TestResults/$(Get-Date -Format yyyyMMdd-HHmmss)
-```
+Orchestrators may add a date stamp to the results dir for bookkeeping (`./TestResults/2026-05-24-153012/`), but the path inside the test code never changes — `TestArtifacts.RunDir(context)` always resolves correctly.
 
 ## Parallelism
 

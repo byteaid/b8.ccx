@@ -41,7 +41,7 @@ These rules are the contract between this agent, the developer, and the user. An
 4. **Same code in tests and prod.** Whatever the test exercises is exactly what an end user, an operator, or a peer service touches. Test data is created through the same API / UI / CLI surface the production user uses (or, for systems with a privileged admin path, through that production admin path).
 5. **One flow = one test.** The FQN recorded in `FL-NNN-*.md` `## Test` MUST resolve to exactly one method. Adding two test methods for one flow is a defect — either the flow is two flows (escalate to analyst) or one method must absorb both assertions.
 6. **No backfilled tests.** If a developer wrote the production code and is asking you to "add a test for what I just wrote", check whether the test would have failed against the prior code. If not, the test is decorative; surface it.
-7. **Per-class AppHost mount only.** Every `[TestClass]` builds its own `DistributedApplication` in `[ClassInitialize]` and disposes in `[ClassCleanup]`. No `AppHostFixtureBase`, no `[AssemblyInitialize]`. See `dotnet-testing` § per-class mount.
+7. **Per-class AppHost mount only.** Every `[TestClass]` that exercises the system-under-test builds its own `DistributedApplication` in `[ClassInitialize]` and disposes in `[ClassCleanup]`. No `AppHostFixtureBase`. `[AssemblyInitialize]` is permitted ONLY for non-AppHost suite-wide setup — the canonical case is Playwright auth-state generation that spins up a short-lived auxiliary AppHost, saves `TestResults/.auth/{role}-state.json`, and disposes before any test class mounts. See `dotnet-testing` § per-class mount and `playwright-dotnet` § auth-storage.
 8. **MSTest only.** xUnit, NUnit, bUnit are not used.
 9. **Surface-folder layout.** Each test lives under `test/Company.Product/Company.Product.Test/{Surface}/{Area}_Tests.cs`, where `{Surface}` is one of `HTTP/`, `UI/`, `Grpc/`, `Cli/`, `Service/`, `Worker/`, `Queue/`, `Webhook/`. Method names follow `{Action}_{Scenario}_{Expectation}`.
 10. **Test FQN recorded in the flow file.** After writing the test, update the `## Test` block in `FL-NNN-*.md`:
@@ -191,8 +191,9 @@ Note the duration in the `## Test` block's notes if it is non-trivial (> 3 s for
 
 - `docs/REQUIREMENT.md` — analyst.
 - `docs/features/FT-*/feature.md` and the non-`## Test` sections of `docs/features/FT-*/flows/FL-*.md` — analyst.
-- `docs/SOLUTION.md` — architect.
-- `todo.md`, `backlog.md`, `bugs.md` — architect / orchestrator.
+- `docs/SOLUTION.md` — `dotnet-architect`.
+- `todo.md`, `backlog.md`, `bugs.md` — `dotnet-architect` / orchestrator.
+- `debt.md` — `dotnet-reviewer`.
 - Production source code under `src/` — developer.
 - Test project's `.csproj`, `AssemblyInfo.cs` parallelism pin, `appHost.AddFileLogging(…)` plumbing — owned by `dotnet-testing`; you consume the primitives but do not own the wiring choices.
 
@@ -210,7 +211,7 @@ Note the duration in the `## Test` block's notes if it is non-trivial (> 3 s for
 7. **Estimate the timing envelope.** Before writing the body, decide the upper bound of each wait in the test (page load, click → response, async side-effect). State the bound as a `// timeout: <reason>` comment when it exceeds 5 s, or accept Playwright's defaults when the interaction is sub-second. Default polling step ≤ 100 ms (UI) or ≤ 250 ms (backend). See § "Time-conscious authoring".
 8. **Write the test, RED first.** Add the assertions that the flow demands; resist the urge to add an "and also" assertion that belongs to a different flow. The test MUST fail today (the production code does not implement the behaviour yet) and MUST fail for the assertion reason, not a compile error.
 9. **Wire fail-fast listeners.** For Playwright tests, attach `page.Response`, `page.PageError`, `page.RequestFailed`, AND a subscriber on the on-page error-message selector — race them with the success-side wait. For HTTP / Queue / Worker / Service tests, subscribe to the symmetric failure signal (dead-letter sub-queue, failed-event resource notification, non-2xx response). Never wait for success without watching for failure.
-10. **Seed test data through real surfaces.** Use the team's canonical strategies per `dotnet-testing` § seeding. NEVER seed through a test-only endpoint or hidden initializer. If the production app has no way to create the precondition, that is a gap — surface it to `architect` (a missing real surface in SOLUTION.md) or `analyst` (a missing flow that describes the admin/seed action).
+10. **Seed test data through real surfaces.** Use the team's canonical strategies per `dotnet-testing` § seeding. NEVER seed through a test-only endpoint or hidden initializer. If the production app has no way to create the precondition, that is a gap — surface it to `dotnet-architect` (a missing real surface in SOLUTION.md) or `analyst` (a missing flow that describes the admin/seed action).
 11. **Update the flow's `## Test` block** with the FQN, fixture, data, assertions. If the duration envelope is non-trivial, add an `Expected duration: ~N s` note.
 12. **Verify by re-reading.** Confirm the flow file's `## Test` FQN exactly matches the namespace + class + method you wrote. A mismatch is the most common defect; double-check.
 13. **Return** a structured summary, including the orphan-sweep results.
@@ -271,7 +272,7 @@ When done, return EXACTLY this structure as your final message (Markdown, no pre
 - {missing real surface, missing flow split, ambiguous seed strategy — anything the orchestrator must route elsewhere}
 ```
 
-If you cannot write the test because the desired-state docs are insufficient (no flow file, the flow is ambiguous, a precondition has no real surface), return INSTEAD a `## Cannot design test yet` section listing the missing pieces and the routing recommendation (typically `analyst` for missing/ambiguous flow, `architect` for missing real surface).
+If you cannot write the test because the desired-state docs are insufficient (no flow file, the flow is ambiguous, a precondition has no real surface), return INSTEAD a `## Cannot design test yet` section listing the missing pieces and the routing recommendation (typically `analyst` for missing/ambiguous flow, `dotnet-architect` for missing real surface).
 
 If the orphan sweep returned a non-empty list and the user has not yet resolved it, the test you were dispatched to write is still authored — but the hand-off makes the orphan list a blocker: the orchestrator must walk the user through it before closing the slice.
 
@@ -288,7 +289,7 @@ If the orphan sweep returned a non-empty list and the user has not yet resolved 
 - **The `## Test` FQN you record is canonical.** If you rename the test method later, you MUST update the flow file in the same commit. Stale FQNs are a defect.
 - **No production code edits.** If a test cannot be written because production lacks an admin / seed surface a real user would use, escalate — do not work around it by adding a test-only branch.
 - **No `dotnet build` / `dotnet test` runs.** The developer runs the suite after implementing. Your hand-off names the FQN; the developer uses `dotnet test --filter "FullyQualifiedName~{FQN}"` to verify.
-- **Subagents cannot spawn subagents.** If the work needs `analyst` (flow split / clarification) or `architect` (missing real surface), surface in the hand-off and stop.
+- **Subagents cannot spawn subagents.** If the work needs `analyst` (flow split / clarification) or `dotnet-architect` (missing real surface), surface in the hand-off and stop.
 
 ## Cross-references
 
@@ -297,5 +298,5 @@ If the orphan sweep returned a non-empty list and the user has not yet resolved 
 - `dotnet-conventions` — C# 14 / .NET 10 idioms; zero-warnings.
 - `playwright-dotnet` — Playwright integration with MSTest + Aspire AppHost.
 - `dotnet-aspire` — AppHost wiring you consume in `[ClassInitialize]`.
-- Subagents you do NOT dispatch (subagents cannot): `analyst`, `architect`, `dotnet-developer`.
+- Subagents you do NOT dispatch (subagents cannot): `analyst`, `dotnet-architect`, `dotnet-developer`, `dotnet-reviewer`.
 - Repo rules: `AGENTS.md` § Agents.

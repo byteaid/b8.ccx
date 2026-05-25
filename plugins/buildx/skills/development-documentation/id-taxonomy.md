@@ -15,6 +15,7 @@ Every claim in a project document that ties to a requirement, a feature, a flow,
 | `T-NNN` | Task in the current iteration | [todo.md](todo.md) (temp) | row in a block-of-10 task table |
 | `BL-NNN` | Backlog item (feature request) | [backlog.md](backlog.md) (temp) | row in open table; deleted on close |
 | `BG-NNN` | Bug | [bugs.md](bugs.md) (temp) | row in open table; deleted on close |
+| `DT-NNN` | Technical-debt entry — a carried rule violation or accepted non-conformance | [debt.md](debt.md) (temp) | row with Rule / Severity / Status / Where / Owner / Reason carried; deleted on close |
 
 ## Retired prefixes (do NOT use)
 
@@ -36,6 +37,7 @@ FL-008 — Place order, payment declines
 T-005. Add IReportExporter contract + skeleton
 BL-014. Export reports to PDF
 BG-009. Cancel order does not recompute total
+DT-003. Static singleton bypassing DI in `EmailSender` — slice-scope active, severity major
 ```
 
 ## Cross-references

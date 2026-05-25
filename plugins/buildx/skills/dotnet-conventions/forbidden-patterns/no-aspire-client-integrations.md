@@ -63,7 +63,7 @@ builder.Services.AddHttpClient<IPaymentApiClient, PaymentApiClient>(c =>
 
 ## Exception
 
-The architect may explicitly allow a specific client integration in `docs/ARCHITECTURE.md` for a documented reason (e.g., a specific OpenTelemetry hookup that the standard client doesn't surface). Without that record, the integration is banned.
+The `dotnet-architect` may explicitly allow a specific client integration in `docs/SOLUTION.md` for a documented reason (e.g., a specific OpenTelemetry hookup that the standard client doesn't surface). Without that record, the integration is banned.
 
 ## See also
 

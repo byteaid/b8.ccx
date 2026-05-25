@@ -1,4 +1,4 @@
-# b8-ccx — Claude Code plugin marketplace
+# ccx — Claude Code plugin marketplace (b8/ccx)
 
 A personal Claude Code marketplace. Each plugin is a self-contained directory under `plugins/` with its own `.claude-plugin/plugin.json`. The top-level `.claude-plugin/marketplace.json` is the catalog users add to their Claude Code install.
 
@@ -6,30 +6,30 @@ A personal Claude Code marketplace. Each plugin is a self-contained directory un
 
 | Plugin | Description |
 |---|---|
-| [`buildx`](./plugins/buildx) | Orchestrator agent for end-to-end software delivery: `buildx` + the `analyst` / `architect` / `dotnet-developer` / `dotnet-test-designer` specialists, the `development-documentation` skill, and a .NET / ASP.NET Core / Playwright knowledge bundle (~30 skills). |
+| [`buildx`](./plugins/buildx) | Orchestrator agent for end-to-end software delivery: `buildx` + the `analyst` / `dotnet-architect` / `dotnet-developer` / `dotnet-test-designer` / `dotnet-reviewer` specialists, the `development-documentation` skill, and a .NET / ASP.NET Core / Playwright knowledge bundle (~30 skills). |
 
 ## Installing
 
 ```text
 # Add the marketplace (once)
-/plugin marketplace add a3-diaz/b8-ccx
+/plugin marketplace add b8/ccx
 
 # Install the plugin
-/plugin install buildx@b8-ccx
+/plugin install buildx@ccx
 ```
 
-Replace `a3-diaz/b8-ccx` with the actual `owner/repo` once the repo is pushed to GitHub. For local development against this checkout:
+For local development against this checkout:
 
 ```text
 /plugin marketplace add D:\srcx\ByteAid\b8\b8.ccx
-/plugin install buildx@b8-ccx
+/plugin install buildx@ccx
 ```
 
 After installation, restart Claude Code (or run `/reload-plugins`) so the new agents and skills are picked up.
 
 ## Using `buildx`
 
-`buildx` is designed to run as the **main session agent** so it can spawn the specialist subagents (`analyst`, `architect`, `dotnet-developer`, `dotnet-test-designer`). Subagents themselves cannot spawn other subagents.
+`buildx` is designed to run as the **main session agent** so it can spawn the specialist subagents (`analyst`, `dotnet-architect`, `dotnet-developer`, `dotnet-test-designer`, `dotnet-reviewer`). Subagents themselves cannot spawn other subagents.
 
 ```text
 claude --agent buildx
@@ -48,8 +48,8 @@ See `plugins/buildx/agents/buildx.md` for the full specification.
 When a new commit lands on the default branch:
 
 ```text
-/plugin marketplace update b8-ccx
-/plugin update buildx@b8-ccx
+/plugin marketplace update ccx
+/plugin update buildx@ccx
 ```
 
 `plugin.json` for each plugin omits an explicit `version`, so Claude Code uses the git commit SHA as the cache key — every commit counts as a new version and `/plugin update` always pulls the latest.

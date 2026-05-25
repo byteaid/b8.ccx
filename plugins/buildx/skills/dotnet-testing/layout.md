@@ -109,7 +109,7 @@ See [mstest-integration.md](mstest-integration.md) § Parallelism for the ration
 - `Acme.Inventory.IntegrationTests` — the project is already integration-only; the suffix is redundant.
 - `Acme.Inventory.Test.Web` / `Acme.Inventory.Test.Api` — those are folders, not projects.
 - A second test project for "slow" or "flaky" tests — fix the test instead.
-- `[AssemblyInitialize]` mounting a shared AppHost — discipline is per-class mount.
+- `[AssemblyInitialize]` mounting the system-under-test AppHost — discipline is per-class mount. `[AssemblyInitialize]` for non-AppHost suite-wide setup (Playwright auth state, pre-computing reference data) IS allowed.
 - An inherited `AppHostFixtureBase` shared between classes — same reason.
 
 ## Enforcement

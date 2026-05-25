@@ -37,8 +37,7 @@ public async Task StopTrace()
 {
     if (TestContext.CurrentTestOutcome != UnitTestOutcome.Passed)
     {
-        var dir = Path.Combine(
-            TestContext.TestRunResultsDirectory ?? Path.GetTempPath(), "traces");
+        var dir = Path.Combine(TestArtifacts.RunDir(TestContext), "traces");
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, $"trace-{TestContext.TestName}.zip");
         await Context.Tracing.StopAsync(new() { Path = path });
@@ -69,7 +68,7 @@ Interactive UI: timeline, screenshots per step, DOM snapshots, network log, cons
 ```csharp
 public override BrowserNewContextOptions ContextOptions() => new()
 {
-    RecordVideoDir  = Path.Combine(TestContext.TestRunResultsDirectory ?? ".", "videos"),
+    RecordVideoDir  = Path.Combine(TestArtifacts.RunDir(TestContext), "videos"),
     RecordVideoSize = new() { Width = 1280, Height = 800 },
 };
 ```
@@ -120,8 +119,7 @@ public async Task CaptureScreenshotOnFailure()
 {
     if (TestContext.CurrentTestOutcome != UnitTestOutcome.Passed)
     {
-        var dir = Path.Combine(
-            TestContext.TestRunResultsDirectory ?? Path.GetTempPath(), "screenshots");
+        var dir = Path.Combine(TestArtifacts.RunDir(TestContext), "screenshots");
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, $"{TestContext.TestName}.png");
         await Page.ScreenshotAsync(new() { Path = path, FullPage = true });

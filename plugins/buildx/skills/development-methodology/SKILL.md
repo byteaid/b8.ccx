@@ -18,14 +18,19 @@ L1 leaf. The methodology is fixed: **test-first orchestrated**. The choice is no
 1. analyst confirms desired state (REQUIREMENT.md, features/**, including the affected FL-NNN)
 2. dotnet-test-designer writes the failing real test for each affected FL-NNN
    - FQN recorded in the flow file's `## Test` block
-3. architect plans the implementation (todo.md, T-NNN blocks of 10)
+3. dotnet-architect plans the implementation (todo.md, T-NNN blocks of 10)
 4. dotnet-developer implements the production code
    - reads the test as the contract
    - writes the minimum production code to satisfy the test
    - does NOT touch the test
    - does NOT add test-only adaptations to production
+   - applies the canonical rules at write-time (try/catch must do work; DI motor only;
+     search-before-create; hexagonal invariants; English only; no secrets in VCS)
 5. dotnet-developer runs `dotnet test --filter "FullyQualifiedName~{FQN}"`, then full `dotnet test`
-6. orchestrator closes the slice (delete the backlog/bugs row, commit)
+6. dotnet-reviewer second-pass review — registers carried rule violations to debt.md (DT-NNN rows),
+   discriminates slice-scope `active` from project-level `structural`. Blocker rows are cleared
+   by re-dispatching dotnet-developer (or dotnet-test-designer if a test must change) BEFORE closure.
+7. orchestrator closes the slice (delete the backlog/bugs row, delete any cleared debt rows, commit)
 ```
 
 The cycle is enforced by `buildx`. Subagents do not pick the cycle, do not switch its order, and do not skip steps.
@@ -67,5 +72,5 @@ If a subagent (developer or test-designer) reports they were asked to do any of 
 - Related skill: `dotnet-testing` — what a "real test surface" looks like in the .NET stack (single `Company.Product.Test`, MSTest, per-class AppHost mount, surface folders, seeding strategies, forbidden patterns).
 - Related skill: `dotnet-conventions` § three-attempts-then-search — the bail-out rule that interrupts a stuck RED→GREEN loop.
 - Related skill: `dotnet-hexagonal-architecture` — what the architecture-level "real surface" looks like in greenfield .NET.
-- Sibling agents: `dotnet-test-designer` (writes tests), `dotnet-developer` (implements + runs tests), `analyst` (owns desired state), `architect` (plans + SOLUTION), `buildx` (enforces the cycle).
+- Sibling agents: `dotnet-test-designer` (writes tests), `dotnet-developer` (implements + runs tests), `analyst` (owns desired state — REQUIREMENT, GLOSSARY, DATA-MODEL, features), `dotnet-architect` (plans + SOLUTION), `dotnet-reviewer` (second-pass review + debt register), `buildx` (enforces the cycle).
 - Repo rules: `AGENTS.md` § Skills.

@@ -67,29 +67,28 @@ builder.AddFileLogging(Path.Combine(AppContext.BaseDirectory, "logs"));
 builder.Build().Run();
 ```
 
-### 4.2 MSTest integration test (`AssemblyInitialize` or fixture)
+### 4.2 MSTest integration test (`[ClassInitialize]`)
 
-Reuse the fallback chain from [integration-testing.md](integration-testing.md) § 9:
+The per-class mount from `dotnet-testing` § mstest-integration. The artefact root comes from `TestContext.TestRunResultsDirectory` via the `TestArtifacts.RunDir(context)` helper defined in that skill:
 
 ```csharp
-public async Task InitializeAsync()
+[ClassInitialize]
+public static async Task ClassInit(TestContext context)
 {
     var appHost = await DistributedApplicationTestingBuilder
-        .CreateAsync<Projects.Contoso_Foo_AppHost>(BuildArgs());
+        .CreateAsync<Projects.Contoso_Foo_AppHost>([]);
 
     appHost.Services.ConfigureHttpClientDefaults(c =>
         c.AddStandardResilienceHandler());
 
-    var runDir = Environment.GetEnvironmentVariable("BLAZTRAP_TEST_RUN_DIR")
-                 ?? AppContext.BaseDirectory;
-    appHost.AddFileLogging(Path.Combine(runDir, "logs"));
+    appHost.AddFileLogging(Path.Combine(TestArtifacts.RunDir(context), "logs"));
 
-    App = await appHost.BuildAsync();
-    await App.StartAsync();
+    _app = await appHost.BuildAsync();
+    await _app.StartAsync();
 }
 ```
 
-`BLAZTRAP_TEST_RUN_DIR` is set by the orchestration agent so every run lands under a known path; without it the IDE-launched run still works.
+`TestContext.TestRunResultsDirectory` is MSTest's per-run results folder; it is stable for the duration of one `dotnet test` invocation. No env vars are read. See `dotnet-testing` § Test artefacts for the full path contract.
 
 ### 4.3 Low-level (host-side logs only)
 
@@ -98,7 +97,7 @@ When something else handles per-resource forwarding (e.g. a different fixture yo
 ```csharp
 builder.Services.AddLogging(b =>
     b.AddFileLogging(
-        outputDirectory: Path.Combine(runDir, "logs"),
+        outputDirectory: Path.Combine(logsDir, "logs"),
         resourceNames: ["api", "worker"]));   // only these match per-resource files
 ```
 
@@ -163,7 +162,7 @@ A per-sink lock serialises writes per output file, so categories interleaving on
 - [ ] `apphost.log` has lines after a healthy `aspire run` startup.
 - [ ] Each `{resource}.log` has lines once the resource emits stdout.
 - [ ] When a resource fails, the matching error appears in `apphost.log`.
-- [ ] In test mode: `BLAZTRAP_TEST_RUN_DIR` resolves to the current run folder; logs land under `{runDir}/logs/`.
+- [ ] In test mode: `TestContext.TestRunResultsDirectory` resolves to the current run folder; logs land under `{TestArtifacts.RunDir(context)}/logs/`.
 - [ ] In test mode: no duplicate lines per resource (otherwise apply § 7 workaround).
 
 ## Cross-references
@@ -173,5 +172,5 @@ A per-sink lock serialises writes per output file, so categories interleaving on
 - Live (`ProjectResource`): https://learn.microsoft.com/en-us/dotnet/api/aspire.hosting.applicationmodel.projectresource
 - Live (`ExecutableResource`): https://learn.microsoft.com/en-us/dotnet/api/aspire.hosting.applicationmodel.executableresource
 - Live (`ILoggerProvider`): https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.logging.iloggerprovider
-- Sibling: [integration-testing.md](integration-testing.md) — fixture-driven invocation and the `BLAZTRAP_TEST_RUN_DIR` convention.
+- Sibling skill: `dotnet-testing` § mstest-integration — per-class mount, `TestArtifacts.RunDir(context)`, artefact layout.
 - Sibling: [scaffolding.md](scaffolding.md) — adding the AppHost project that hosts this call.

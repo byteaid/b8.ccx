@@ -12,6 +12,8 @@ Every project the team manages keeps its documentation in two predictable locati
 {repo-root}/
 ├── docs/
 │   ├── REQUIREMENT.md                       # FR/NFR + feature index
+│   ├── GLOSSARY.md                          # domain vocabulary
+│   ├── DATA-MODEL.md                        # entities + relationships
 │   ├── SOLUTION.md                          # infrastructure + apps + comms
 │   └── features/
 │       ├── FT-001-{kebab-feature-name}/
@@ -28,7 +30,7 @@ Every project the team manages keeps its documentation in two predictable locati
 
 - **`docs/` lives at the repo root.** Never under `src/`, never under a subproject, never duplicated across modules. Multi-module repos still keep one `docs/` at the top.
 - **`docs/` is git-tracked.** Never gitignored, never excluded from publish artefacts.
-- **Filenames are case-sensitive and exact.** `REQUIREMENT.md` and `SOLUTION.md` are UPPERCASE singular. `feature.md` is lowercase. `FL-NNN-{kebab}.md` uses uppercase prefix + zero-padded number + kebab name (e.g. `FL-002-login-wrong-password.md`).
+- **Filenames are case-sensitive and exact.** `REQUIREMENT.md`, `GLOSSARY.md`, `DATA-MODEL.md`, and `SOLUTION.md` are UPPERCASE singular. `feature.md` is lowercase. `FL-NNN-{kebab}.md` uses uppercase prefix + zero-padded number + kebab name (e.g. `FL-002-login-wrong-password.md`).
 - **One canonical doc per concept.** No `REQUIREMENT_v2.md`, no `BUGS-OLD.md`. Supersession is in-place rewrite.
 - **No `docs/archive/`.** The desired-state is the present state; the historical archive is `git log`.
 - **No PROGRESS, no CHANGELOG, no ASSESSMENT, no CODE_INSPECTION, no ARCHITECTURE.** These were retired in v0.4.0 of this skill — their content has been folded into the new structure (ARCHITECTURE → SOLUTION) or deleted (PROGRESS, CHANGELOG, ASSESSMENT, CODE_INSPECTION → git log).
@@ -39,7 +41,8 @@ Every project the team manages keeps its documentation in two predictable locati
 ${OS_TEMP}/aix-todo/{repo-basename}/
 ├── todo.md          # T-NNN tasks for the current iteration (rewritten per iteration)
 ├── backlog.md       # BL-NNN items currently open (closed items are deleted)
-└── bugs.md          # BG-NNN bugs currently open (closed items are deleted)
+├── bugs.md          # BG-NNN bugs currently open (closed items are deleted)
+└── debt.md          # DT-NNN carried technical debt (closed items are deleted)
 ```
 
 - **`${OS_TEMP}`** resolves to `$env:TEMP` on Windows and `${TMPDIR:-/tmp}` on POSIX.
@@ -54,6 +57,7 @@ ${OS_TEMP}/aix-todo/{repo-basename}/
 ${OS_TEMP}/aix-todo/{repo-basename}/todo.md
 ${OS_TEMP}/aix-todo/{repo-basename}/backlog.md
 ${OS_TEMP}/aix-todo/{repo-basename}/bugs.md
+${OS_TEMP}/aix-todo/{repo-basename}/debt.md
 ```
 
 On Windows (PowerShell): `$env:TEMP\aix-todo\{repo-basename}\todo.md`
@@ -65,10 +69,10 @@ The parent directory is created on first write. The orchestrator MUST ensure the
 
 | Variant | What gets created |
 |---|---|
-| **a** (empty repo) | Full `docs/REQUIREMENT.md` + at least one `docs/features/FT-NNN-*/feature.md` + at least one flow + `docs/SOLUTION.md` + the three operational files in temp. |
-| **b** (docs-only) | Refine existing `docs/`; create any missing canonical files; seed temp files if absent. |
-| **c1** (code-only, full reverse-engineer) | Infer `docs/REQUIREMENT.md`, `docs/features/**`, `docs/SOLUTION.md` from the code; seed temp files. |
-| **c2** (code-only, minimal docs) | Only the three temp files. No `docs/` content seeded. |
+| **a** (empty repo) | Full `docs/REQUIREMENT.md` + `docs/GLOSSARY.md` + `docs/DATA-MODEL.md` + at least one `docs/features/FT-NNN-*/feature.md` + at least one flow + `docs/SOLUTION.md` + the four operational files in temp. |
+| **b** (docs-only) | Refine existing `docs/`; create any missing canonical files (including `GLOSSARY.md` / `DATA-MODEL.md` if absent); seed temp files if absent. |
+| **c1** (code-only, full reverse-engineer) | Infer `docs/REQUIREMENT.md`, `docs/GLOSSARY.md`, `docs/DATA-MODEL.md`, `docs/features/**`, `docs/SOLUTION.md` from the code; seed temp files. |
+| **c2** (code-only, minimal docs) | Only the four temp files. No `docs/` content seeded. |
 | **c3** (code-only, no docs) | Nothing. Proceed directly to code change. |
 | **legacy-docs** (old format detected) | Blocked. Offer migration to the new hierarchical structure; nothing else happens until the user accepts. |
 | **existing-code-greenfield-docs** (code-only, full reverse + Aspire + tests) | Full reverse-engineer + Aspire enrolment + per-flow real tests written. |

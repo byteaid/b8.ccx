@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
-  "name": "b8-ccx",
+  "name": "ccx",
   "owner": {
     "name": "a3.diaz",
     "email": "a3.diaz@outlook.com"
@@ -9,7 +9,7 @@
     {
       "name": "buildx",
       "source": "./plugins/buildx",
-      "description": "Orchestrator agent for end-to-end software delivery: analyst → architect → test-designer → developer, with the development-documentation skill and the .NET / ASP.NET Core / Playwright knowledge bundle."
+      "description": "Orchestrator agent for end-to-end software delivery: analyst → dotnet-architect → test-designer → developer → dotnet-reviewer, with the development-documentation skill and the .NET / ASP.NET Core / Playwright knowledge bundle."
     }
   ]
 }
