@@ -25,7 +25,8 @@ L1 leaf. The methodology is fixed: **test-first orchestrated**. The choice is no
    - does NOT touch the test
    - does NOT add test-only adaptations to production
    - applies the canonical rules at write-time (try/catch must do work; DI motor only;
-     search-before-create; hexagonal invariants; English only; no secrets in VCS)
+     search-before-create; hexagonal invariants; English only incl. enums/constants/routes;
+     no secrets in VCS; no magic literals — constants + enums; exceptions logged, never leaked [P0])
 5. dotnet-developer runs `dotnet test --filter "FullyQualifiedName~{FQN}"`, then full `dotnet test`
 6. dotnet-reviewer second-pass review — registers carried rule violations to debt.md (DT-NNN rows),
    discriminates slice-scope `active` from project-level `structural`. Blocker rows are cleared

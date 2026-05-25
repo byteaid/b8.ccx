@@ -29,12 +29,14 @@ Items can be discovered by anyone (a developer who notices something while editi
 
 ## Open
 
-| ID | Rule | Severity | Status | Where | Owner | First seen | Reason carried | Linked |
-|---|---|---|---|---|---|---|---|---|
-| DT-001 | `no-test-only-adaptations` | blocker | active | `src/Acme.Web/Program.cs:42` (`if (env.IsTest)` branch) | `dotnet-developer` (current) | 2026-05-24 | flow `FL-014` was authored against this branch; needs test-designer to rewrite test before branch can be removed | FL-014, BG-021 |
-| DT-002 | `no-static-bypass-of-di` | major | active | `src/Acme.Web/Services/EmailSender.cs` (`Static.Send(...)`) | `dotnet-developer` (current) | 2026-05-24 | DI motor not in use across the project; user did not request a migration. Slice-level rule survives at project-level non-conformance | (project-wide) |
-| DT-003 | `architecture-deviation-hexagonal` | structural | accepted | whole `src/Legacy.Reports/` tree | (no one) | 2026-05-24 | legacy project pre-dating hexagonal adoption; user explicitly accepted leaving it as-is during bootstrap c1 | (project-wide) |
+| ID | Rule | Severity | Priority | Status | Where | Owner | First seen | Reason carried | Linked |
+|---|---|---|---|---|---|---|---|---|---|
+| DT-001 | `no-test-only-adaptations` | blocker | P1 | active | `src/Acme.Web/Program.cs:42` (`if (env.IsTest)` branch) | `dotnet-developer` (current) | 2026-05-24 | flow `FL-014` was authored against this branch; needs test-designer to rewrite test before branch can be removed | FL-014, BG-021 |
+| DT-002 | `no-static-bypass-of-di` | major | P1 | active | `src/Acme.Web/Services/EmailSender.cs` (`Static.Send(...)`) | `dotnet-developer` (current) | 2026-05-24 | DI motor not in use across the project; user did not request a migration. Slice-level rule survives at project-level non-conformance | (project-wide) |
+| DT-003 | `architecture-deviation-hexagonal` | structural | P2 | accepted | whole `src/Legacy.Reports/` tree | (no one) | 2026-05-24 | legacy project pre-dating hexagonal adoption; user explicitly accepted leaving it as-is during bootstrap c1 | (project-wide) |
 ```
+
+> A `P0` row is transient by design — it exists only between the moment the reviewer flags it and the moment the orchestrator clears it in the same slice. It is never `accepted`, never `slated`, never carried across a closure. See § Priority.
 
 The table is the only authoritative shape; do not add free-text sections between rows.
 
@@ -44,7 +46,8 @@ The table is the only authoritative shape; do not add free-text sections between
 |---|---|---|
 | `ID` | yes | `DT-NNN`. Stable. Never reused. |
 | `Rule` | yes | The exact rule slug from `dotnet-conventions` (e.g., `no-test-only-adaptations`, `no-static-bypass-of-di`, `no-duplicate-or-ambiguous-models`, `architecture-deviation-hexagonal`, `english-only`, `no-hardcoded-secrets`, `try-catch-must-do-work`). One rule per row — if a single file violates two rules, that is two rows. |
-| `Severity` | yes | `blocker` / `major` / `minor` / `structural`. See § Severity. |
+| `Severity` | yes | `blocker` / `major` / `minor` / `structural`. Measures **impact**. See § Severity. |
+| `Priority` | yes | `P0` / `P1` / `P2`. Measures **urgency and negotiability** — orthogonal to severity. See § Priority. |
 | `Status` | yes | `active` / `accepted` / `superseded` / `slated`. See § Status discriminator. |
 | `Where` | yes | File path + line range if local; `(project-wide)` if it is a global non-conformance. Use `:NNN` line numbers when the row points at a single site; use a glob when it points at many. |
 | `Owner` | yes | The agent / role / person responsible for clearing it. `(no one)` is legal for `accepted` rows. |
@@ -61,6 +64,25 @@ The table is the only authoritative shape; do not add free-text sections between
 | `minor` | Cosmetic / non-functional. Cleared opportunistically. | Spanish identifier in a private helper; comment in mixed language; redundant try/catch that swallows nothing meaningful. |
 | `structural` | The violation is at project-level scale — the whole codebase or a whole subtree breaks the rule. The user has NOT requested a migration. Recorded so the team knows the conformance gap exists, but no per-slice action is required. | Whole solution lacks DI motor; whole legacy subtree predates hexagonal; large portion of the codebase still uses `DateTime.UtcNow`. |
 
+## Priority
+
+Severity says *how bad the violation is*; priority says *how negotiable and how deferrable clearing it is*. The two are orthogonal — a `minor`-impact rule can still be `P0` if the team has declared it non-negotiable, and a `blocker` can be `P1`.
+
+| Level | Meaning | Reviewer / orchestrator behaviour |
+|---|---|---|
+| `P0` | **Non-negotiable and non-deferrable.** Reserved for rules the team has declared cannot be lived with for even one slice. | The row is **never** `accepted`, **never** `slated`, **never** carried across a closure. The orchestrator MUST NOT close the slice while a `P0` row produced by that slice is open — it re-dispatches the developer to clear it, then re-runs the reviewer to confirm. There is no "leave as `active`" option and no user authorisation that converts a `P0` to `accepted`. A pre-existing `P0` violation found while editing is fixed in the same touch, not parked as `structural`. |
+| `P1` | **Normal.** The default for any actionable violation. | Clearance timing follows § Severity: `blocker` before the next slice in the area, `major` clean-as-you-touch. May be carried as `active` / `slated` per the status rules. |
+| `P2` | **Opportunistic / visibility-only.** | The default for `minor` and `structural` rows. Cleared when convenient or recorded for awareness only. |
+
+**Default mapping (apply unless the rule is on the P0 list):** `blocker` / `major` → `P1`; `minor` / `structural` → `P2`.
+
+**Rules currently designated `P0`:**
+
+- `exceptions-logged-not-leaked` — leaking `ex.Message` / stack traces to the user, OR a caught exception that is never logged via `ILogger`. (`dotnet-conventions` § forbidden-patterns/exceptions-logged-not-leaked.)
+- `no-hardcoded-secrets` — a real production secret committed to version control (the leak is `P0`; the row is `P0` until the secret is removed AND rotated).
+
+This list is the only source of `P0`. A reviewer does not invent `P0` for other rules; if a recurring violation deserves the tier, surface it to the orchestrator to add the designation to `dotnet-conventions` first.
+
 ## Status discriminator
 
 The status answers: *given this violation exists, what is the team doing about it?*
@@ -71,6 +93,8 @@ The status answers: *given this violation exists, what is the team doing about i
 | `accepted` | The user explicitly authorised the violation to remain (e.g., legacy subtree, vendor-imposed pattern, structural non-conformance the user does not want migrated). The row exists for visibility only. | New row created; severity is usually `structural` or `minor`; owner is `(no one)`; row is deleted only if the surrounding code is deleted. |
 | `superseded` | The row was created against a rule version that has since changed; the current rule no longer flags this. | Reviewer deletes the row immediately. Do not keep "superseded" rows around — `git log` is the trace. |
 | `slated` | A `BL-NNN` or `BG-NNN` has been created to clear it; the operational queue now owns the clearance. | Row links to the `BL-NNN` / `BG-NNN`; when that piece closes, the orchestrator deletes the row. |
+
+**`P0` overrides the status options:** a `P0` row may only ever be `active`, and only transiently — `accepted`, `slated`, and any carry-forward are forbidden for `P0`. It is cleared in the slice that produced it (or immediately on discovery), then deleted.
 
 ## The aptness rule
 
@@ -92,7 +116,7 @@ Concretely: if the project has no DI motor anywhere, a brand-new `static EmailSe
 ## Discoverability
 
 - The reviewer lists every open `DT-NNN` row in its hand-off after every dispatch.
-- The orchestrator reads `debt.md` at session start to know what blocker rows exist; a `blocker` row gates new slices in the affected area.
+- The orchestrator reads `debt.md` at session start to know what blocker rows exist; a `blocker` row gates new slices in the affected area, and any `P0` row gates closure of the slice that produced it (it must be cleared, not carried).
 - The user can ask the orchestrator for a debt snapshot any time; the orchestrator surfaces the `debt.md` content verbatim.
 
 ## Audit checklist (reviewer runs every save)
@@ -101,6 +125,7 @@ Concretely: if the project has no DI motor anywhere, a brand-new `static EmailSe
 - [ ] No row references a `BL-NNN` / `BG-NNN` / `FL-NNN` that does not exist.
 - [ ] No `superseded` row survives — they are deleted on sight.
 - [ ] `Severity` matches the actual impact (no `minor` row for a hardcoded production secret).
+- [ ] `Priority` is set on every row; `P0` only for designated rules; no `P0` row is `accepted` or `slated`.
 - [ ] Project-level non-conformance is captured as exactly ONE `structural` row, not duplicated per slice.
 
 ## See also

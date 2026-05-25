@@ -10,8 +10,17 @@ Every artifact written by the team is in English. No exceptions:
 - Commit messages, branch names, PR titles and descriptions.
 - `docs/*.md` (REQUIREMENT, FLOWS, ARCHITECTURE, ASSESSMENT, CHANGELOG, BACKLOG, BUGS, PROGRESS).
 - Test names and `[TestProperty]` values.
+- **Enum members, constant names AND constant values, and route segments** — explicitly. A status enum is `ScopeStatus.Registered`, never `Registrado`; a route constant is `ApiRoutes.Identities = "api/.../identities"`, never `"api/.../identidades"`. (These are the same surfaces governed by [../forbidden-patterns/no-magic-literals.md](../forbidden-patterns/no-magic-literals.md) and [../forbidden-patterns/no-uppercase-routes.md](../forbidden-patterns/no-uppercase-routes.md).)
 
 User-facing UI text is the only carve-out and is handled by the i18n / resource pipeline, not by inlining non-English strings into source.
+
+## Legacy carve-out (the only tolerance)
+
+Pre-existing Spanish (or otherwise non-English) identifiers **already in the codebase** are tolerated — they are inherited debt, not a fresh violation. The rule splits exactly along the aptness line (`development-documentation` § debt):
+
+- **New code** introduced by a slice is English with **no exception** — a new Spanish enum member / constant / route is an `active` violation cleared in the slice.
+- **Legacy identifiers** the slice did not create are recorded once as `accepted` (`structural`) debt; you do not mass-rename them unless the user asked for the migration. Renaming a public legacy identifier can break callers/contracts — surface the cascade rather than breaking it.
+- The carve-out covers identifiers only. It is **never** a licence to add new Spanish, and it does **not** apply to leaking or swallowing exceptions (that is `P0`; see [../forbidden-patterns/exceptions-logged-not-leaked.md](../forbidden-patterns/exceptions-logged-not-leaked.md)).
 
 ## Rationale
 

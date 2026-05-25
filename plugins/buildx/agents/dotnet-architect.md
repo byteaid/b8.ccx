@@ -97,6 +97,6 @@ If the request was a pure solution-only decision (no implementation plan needed 
 
 - `development-documentation` § solution, § todo, § id-taxonomy, § bootstrap — the doc shapes you write into.
 - `dotnet-aspire` (or per-stack equivalent) — Aspire AppHost scaffolding for the `existing-code-greenfield-docs` variant.
-- `claude-code-subagents` — subagent contract; in particular, `dotnet-architect` cannot itself spawn subagents.
+- `AGENTS.md` § Authoring Reference — Agents & Skills → Agents — the subagent contract; in particular, `dotnet-architect` cannot itself spawn subagents.
 - Subagents you do NOT dispatch (subagents cannot): `analyst`, `dotnet-test-designer`, `dotnet-developer`, `dotnet-reviewer`.
 - Repo rules: `AGENTS.md` § Agents.

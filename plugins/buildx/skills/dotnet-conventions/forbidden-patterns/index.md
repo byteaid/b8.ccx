@@ -39,6 +39,8 @@ Enforcement
 | Static / manual bypass of the DI motor (statics, service locator, manual `new` of registered types, `Activator.CreateInstance`) | [no-static-bypass-of-di.md](no-static-bypass-of-di.md) |
 | Duplicate / ambiguous models, services, helpers (search-before-create discipline) | [no-duplicate-or-ambiguous-models.md](no-duplicate-or-ambiguous-models.md) |
 | Deviation from the official hexagonal architecture (wrong project, concrete-adapter dependency, broken dependency-flow invariant) | [no-architecture-deviation.md](no-architecture-deviation.md) |
+| Magic literals in code — inline routes / status values / messages / magic numbers (use constant classes, prefer enums) | [no-magic-literals.md](no-magic-literals.md) |
+| Leaking exception detail to the user + unlogged exceptions (generic `ErrorMessages` to the user, full detail via `ILogger`) — **`P0`** | [exceptions-logged-not-leaked.md](exceptions-logged-not-leaked.md) |
 
 ## See also
 
