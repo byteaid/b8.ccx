@@ -1,4 +1,4 @@
-# ccx — Claude Code plugin marketplace (b8/ccx)
+# ccx — Claude Code plugin marketplace (byteaid/b8.ccx)
 
 A personal Claude Code marketplace. Each plugin is a self-contained directory under `plugins/` with its own `.claude-plugin/plugin.json`. The top-level `.claude-plugin/marketplace.json` is the catalog users add to their Claude Code install.
 
@@ -12,7 +12,7 @@ A personal Claude Code marketplace. Each plugin is a self-contained directory un
 
 ```text
 # Add the marketplace (once)
-/plugin marketplace add b8/ccx
+/plugin marketplace add byteaid/b8.ccx
 
 # Install the plugin
 /plugin install buildx@ccx

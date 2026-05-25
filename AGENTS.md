@@ -126,7 +126,7 @@ Spec lives in `plugins/buildx/agents/buildx.md`. Subagent dispatch contract is d
 Install:
 
 ```text
-/plugin marketplace add b8/ccx
+/plugin marketplace add byteaid/b8.ccx
 /plugin install buildx@ccx
 ```
 
