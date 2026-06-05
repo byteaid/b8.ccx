@@ -1,7 +1,7 @@
 # ccx — Claude Code Plugin Marketplace
 
-**Version:** v1.1.0
-**Updated:** 2026-05-25
+**Version:** v1.3.0
+**Updated:** 2026-06-04
 
 Personal Claude Code marketplace. Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json`; the top-level `.claude-plugin/marketplace.json` is the catalog users add to their Claude Code install. Targets **Claude Code only** — no cross-provider deploy, no research substrate, no per-customer scoping.
 
@@ -181,6 +181,15 @@ Orchestrator agent for end-to-end software delivery. Bundles:
 - **Skills** (`plugins/buildx/skills/`): `development-documentation`, `development-methodology`, plus the .NET / ASP.NET Core / Playwright / Aspire / EF Core / hexagonal-architecture / scripting / serialization / testing bundle (~37 skills).
 
 Spec lives in `plugins/buildx/agents/buildx.md`. Subagent dispatch contract is described there — do not duplicate it here.
+
+## Plugin: `azx`
+
+Azure skills bundle — **skills only, no agents**: two knowledge skills (pricing, icons) plus one procedure skill (proposal generation) that composes them.
+
+- **Skills** (`plugins/azx/skills/`):
+  - `azure-pricing-api` — Azure Retail Prices API (`https://prices.azure.com/api/retail/prices`) reference: filters, pagination, Consumption / Reservation / savings-plan rates, and the quote workflow with its pitfall catalog.
+  - `byteaid-assets-icons` — ByteAid Assets icons API (`https://assets.byteaid.io/api/icons/*`): icon-slug resolution (fuzzy search, never-empty pitfall) and embedding recipes for mermaid (img-in-label) and Typst (download-then-`#image`, icon-is-the-node).
+  - `generate-azure-solution-proposal` — deterministic procedure for a 9-section Azure solution proposal (Resumen ejecutivo → Fuera de alcance), Typst → PDF; consumes the two skills above; optional style guide themes appearance via a fixed `theme` dict without altering anatomy.
 
 ## Distribution & Updates
 
