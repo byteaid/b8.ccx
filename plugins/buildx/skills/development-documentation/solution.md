@@ -33,6 +33,7 @@ The **architect** role produces and maintains SOLUTION.md. The architect replace
 
 - Functional or non-functional requirements — those live in [requirement.md](requirement.md).
 - Per-feature detail or per-flow detail — those live under `docs/features/`.
+- Per-pipeline data design (entry point + step-by-step transformations for one route) — that lives in the architect's own `dataflows/DF-NNN-*.md` files (see [data-flow.md](data-flow.md)); SOLUTION.md carries the component inventory those pipelines cite, not the pipelines themselves.
 - Per-iteration task decomposition — that lives in the operational `todo.md` (temp folder).
 - Per-iteration cost actuals — track those in the project's ops dashboards; SOLUTION.md carries the planning estimate.
 - Decisions log, history, supersession trails — git log is the historical archive.
@@ -179,3 +180,4 @@ Secret handling: no secrets in source; values come from the platform's secret st
 - [requirement.md](requirement.md) — the FRs / NFRs each component satisfies.
 - [feature.md](feature.md) — the features each app serves.
 - [flow.md](flow.md) — the routes the apps realise.
+- [data-flow.md](data-flow.md) — the per-route pipelines whose steps must resolve to this file's Apps / Infrastructure rows.

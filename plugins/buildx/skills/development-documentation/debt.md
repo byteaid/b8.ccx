@@ -45,7 +45,7 @@ The table is the only authoritative shape; do not add free-text sections between
 | Column | Required | Notes |
 |---|---|---|
 | `ID` | yes | `DT-NNN`. Stable. Never reused. |
-| `Rule` | yes | The exact rule slug from `dotnet-conventions` (e.g., `no-test-only-adaptations`, `no-static-bypass-of-di`, `no-duplicate-or-ambiguous-models`, `architecture-deviation-hexagonal`, `english-only`, `no-hardcoded-secrets`, `try-catch-must-do-work`). One rule per row — if a single file violates two rules, that is two rows. |
+| `Rule` | yes | The exact rule slug from its owning skill — most from `dotnet-conventions` (e.g., `no-test-only-adaptations`, `no-static-bypass-of-di`, `no-duplicate-or-ambiguous-models`, `architecture-deviation-hexagonal`, `english-only`, `no-hardcoded-secrets`, `try-catch-must-do-work`), the testing-conformance slugs from `dotnet-testing`, and `code-maps-to-dataflow` from [data-flow.md](data-flow.md). One rule per row — if a single file violates two rules, that is two rows. |
 | `Severity` | yes | `blocker` / `major` / `minor` / `structural`. Measures **impact**. See § Severity. |
 | `Priority` | yes | `P0` / `P1` / `P2`. Measures **urgency and negotiability** — orthogonal to severity. See § Priority. |
 | `Status` | yes | `active` / `accepted` / `superseded` / `slated`. See § Status discriminator. |
@@ -133,5 +133,5 @@ Concretely: if the project has no DI motor anywhere, a brand-new `static EmailSe
 - [skill.md](skill.md) — master table of canonical docs.
 - [id-taxonomy.md](id-taxonomy.md) — `DT-NNN` prefix definition.
 - [backlog.md](backlog.md), [bugs.md](bugs.md) — operational queue siblings.
-- `dotnet-conventions` § forbidden-patterns — the rule catalog whose slugs appear in the `Rule` column.
+- `dotnet-conventions` § forbidden-patterns — the primary rule catalog whose slugs appear in the `Rule` column (testing-conformance slugs live in `dotnet-testing`; `code-maps-to-dataflow` lives in [data-flow.md](data-flow.md)).
 - `dotnet-conventions` § build-quality/clean-as-you-touch — the scope-bounded policy that turns `major` debt into a slice action.

@@ -1,7 +1,7 @@
 # ccx — Claude Code Plugin Marketplace
 
-**Version:** v1.3.0
-**Updated:** 2026-06-04
+**Version:** v1.4.0
+**Updated:** 2026-06-11
 
 Personal Claude Code marketplace. Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json`; the top-level `.claude-plugin/marketplace.json` is the catalog users add to their Claude Code install. Targets **Claude Code only** — no cross-provider deploy, no research substrate, no per-customer scoping.
 
@@ -173,8 +173,8 @@ Orchestrator agent for end-to-end software delivery. Bundles:
 
 - **Agents** (`plugins/buildx/agents/`):
   - `buildx` — orchestrator (designed as the main session agent).
-  - `analyst` — owns `docs/REQUIREMENT.md`, `docs/GLOSSARY.md`, `docs/DATA-MODEL.md`, and `docs/features/**`.
-  - `dotnet-architect` — owns `docs/SOLUTION.md` and the out-of-repo `todo.md`.
+  - `analyst` — owns `docs/REQUIREMENT.md`, `docs/GLOSSARY.md`, `docs/DATA-MODEL.md`, and `docs/features/**` minus the `dataflows/` subfolders.
+  - `dotnet-architect` — owns `docs/SOLUTION.md`, the per-flow data flows (`docs/features/FT-*/dataflows/DF-NNN-*.md` — the step-by-step implementation contract, 1..N per `FL-NNN`), and the out-of-repo `todo.md`.
   - `dotnet-test-designer` — writes the per-flow real integration tests.
   - `dotnet-developer` — implements until tests pass.
   - `dotnet-reviewer` — second-pass review of the developer's output; owns the out-of-repo `debt.md`.

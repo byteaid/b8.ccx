@@ -12,6 +12,7 @@ Every claim in a project document that ties to a requirement, a feature, a flow,
 | `NFR-NNN` | Non-functional requirement | [requirement.md](requirement.md) | same shape; constraint axis (latency, availability, security, accessibility, i18n, observability) |
 | `FT-NNN` | Feature | [feature.md](feature.md) — one file per FT at `docs/features/FT-NNN-{kebab}/feature.md` | `# FT-NNN — {Feature title}` heading + body |
 | `FL-NNN` | Flow (a single user route through a feature) | [flow.md](flow.md) — one file per FL at `docs/features/FT-NNN-{kebab}/flows/FL-NNN-{kebab}.md` | `# FL-NNN — {route title}` heading + body with mandatory `## Test` section |
+| `DF-NNN` | Data flow (a step-by-step data pipeline realising a flow; 1..N per FL) | [data-flow.md](data-flow.md) — one file per DF at `docs/features/FT-NNN-{kebab}/dataflows/DF-NNN-{kebab}.md` | `# DF-NNN — {pipeline title}` heading + entry point + steps table + terminal state |
 | `T-NNN` | Task in the current iteration | [todo.md](todo.md) (temp) | row in a block-of-10 task table |
 | `BL-NNN` | Backlog item (feature request) | [backlog.md](backlog.md) (temp) | row in open table; deleted on close |
 | `BG-NNN` | Bug | [bugs.md](bugs.md) (temp) | row in open table; deleted on close |
@@ -34,6 +35,7 @@ NFR-003. P95 latency under 200 ms for the catalog endpoint
 FT-001 — Checkout
 FL-007 — Place order, payment succeeds
 FL-008 — Place order, payment declines
+DF-012 — Order persistence and payment-event fan-out
 T-005. Add IReportExporter contract + skeleton
 BL-014. Export reports to PDF
 BG-009. Cancel order does not recompute total
@@ -54,6 +56,7 @@ A reference uses the full prefix and is read as a hyperlink even when it isn't o
 - **Zero-padded to 3 digits by default.** `FR-001`, `FR-042`. Bump to 4 digits only if a project genuinely exceeds 999 entries in a category.
 - **Locally unique within prefix, globally.** Two `FR-007` in the same project is a bug. The same number across prefixes is fine: `FR-007`, `FT-007`, `FL-007`, `BG-007` may coexist.
 - **`FL-NNN` numbering is global** across the entire project, not per feature. `FT-001` may contain `FL-001`..`FL-007`; `FT-002` may then start at `FL-008`. The flow file lives under its owning feature's folder, but its number is drawn from a single global counter.
+- **`DF-NNN` numbering is global** too, on its own counter. A data flow lives under its owning feature's `dataflows/` folder and cites exactly one parent `FL-NNN`; the slug describes the pipeline (`credential-validation`, `order-event-fanout`), not the route.
 - **`FT-NNN` folder name is `FT-NNN-{kebab}`.** The kebab suffix is a human-friendly slug derived from the feature title (`login`, `checkout`, `report-export`). Renaming the slug is a documentation rename; the `FT-NNN` itself stays stable.
 - **`FL-NNN-{kebab}.md` follows the same shape.** The slug is the route, not the feature (`login-success`, `login-wrong-password`, `login-locked-account`).
 - **Never invent an ID retroactively.** If a cited ID doesn't exist, fix the upstream document first — do not paper over with a fake number.

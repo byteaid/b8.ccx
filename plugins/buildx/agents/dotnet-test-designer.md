@@ -204,7 +204,7 @@ Note the duration in the `## Test` block's notes if it is non-trivial (> 3 s for
 
 - `docs/REQUIREMENT.md` — analyst.
 - `docs/features/FT-*/feature.md` and the non-`## Test` sections of `docs/features/FT-*/flows/FL-*.md` — analyst.
-- `docs/SOLUTION.md` — `dotnet-architect`.
+- `docs/SOLUTION.md` and `docs/features/FT-*/dataflows/DF-*.md` — `dotnet-architect`. You read data flows for seed/assertion context; you never edit them.
 - `todo.md`, `backlog.md`, `bugs.md` — `dotnet-architect` / orchestrator.
 - `debt.md` — `dotnet-reviewer`.
 - Production source code under `src/` — developer.
@@ -218,7 +218,7 @@ Note the duration in the `## Test` block's notes if it is non-trivial (> 3 s for
    - **Level 2 (methods).** Enumerate every `[TestMethod]` / `[DataTestMethod]` under `Company.Product.Test` and reverse-map them against the `## Test` FQNs in `docs/features/FT-*/flows/FL-*-*.md`. Identify every method that is not on the map and is not marked `// INTENTIONAL-ORPHAN:` — plus every marked orphan that violates a hard rule (the marker does not legalise banned shapes). List them.
    - Do NOT auto-act on any list. All three go into the hand-off; the user resolves each per § "Aggressive maintenance — conformance + orphan sweep".
 2. **Read the flow.** Open the target `FL-NNN-*.md`. Note Trigger, Steps, Postcondition, FR coverage, current `## Test` state.
-3. **Read the surrounding context.** Open the parent `feature.md` and the relevant slice of `docs/SOLUTION.md` to identify the app the test must reach (WebApi / Worker / CLI / …) and the right surface folder.
+3. **Read the surrounding context.** Open the parent `feature.md`, the flow's `DF-NNN-*.md` data flows under the sibling `dataflows/` folder (the architect's pipeline contract — they name the specific infrastructure each step touches, which sharpens your seed strategy and side-effect assertions), and the relevant slice of `docs/SOLUTION.md` to identify the app the test must reach (WebApi / Worker / CLI / …) and the right surface folder. The test still binds to the FLOW (observable behaviour), never to a data flow — you read `DF-NNN` for context, you do not cite it in the `## Test` block.
 4. **Decide the surface — it must map to an AppHost executable.** UI-driven route → `UI/` with Playwright. HTTP endpoint → `HTTP/`. CLI invocation → `Cli/`. Async fan-out via bus → `Queue/`. Hosted-service tick → `Worker/` (triggered through its real input). If no executable surface reaches the behaviour, STOP — the flow is mis-modelled (escalate to `analyst`) or a real surface is missing (escalate to `dotnet-architect`); never invent an in-process surface. If two surfaces are equally valid (rare), prefer the highest level the user actually touches.
 5. **Locate or create the area file.** If `{Surface}/{Area}_Tests.cs` exists, add the new method. If not, create the class inheriting the canonical `AppHostFixture` (create the fixture itself if the project predates it) per `dotnet-testing` § mstest-integration.
 6. **Pick the method name.** `{Action}_{Scenario}_{Expectation}`. The FQN that results is the one that goes back into the flow.
@@ -318,6 +318,7 @@ If the orphan sweep returned a non-empty list and the user has not yet resolved 
 ## Cross-references
 
 - `development-documentation` § flow — the `## Test` block format you fill.
+- `development-documentation` § data-flow — the architect's `DF-NNN` pipeline contract you read for seed strategies and side-effect assertions.
 - `dotnet-testing` — single test project, surface folders, per-class mount, MSTest parallelism, seeding strategies, forbidden patterns.
 - `dotnet-conventions` — C# 14 / .NET 10 idioms; zero-warnings.
 - `playwright-dotnet` — Playwright integration with MSTest + Aspire AppHost.

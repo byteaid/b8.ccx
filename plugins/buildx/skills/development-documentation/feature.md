@@ -30,6 +30,7 @@ The analyst role produces and maintains every `feature.md`. The test-designer ro
 ## What does NOT go in
 
 - Per-route step-by-step description — that lives inside each `FL-NNN-{kebab}.md`.
+- Per-pipeline data design — that lives in the architect's `dataflows/DF-NNN-{kebab}.md` files (see [data-flow.md](data-flow.md)); `feature.md` carries no data-flow index (data flows cite their parent `FL-NNN` themselves).
 - Test FQNs — those live in the `## Test` block of each flow.
 - Implementation details, framework choices, endpoints — [solution.md](solution.md).
 - Cross-cutting requirements that apply to the whole product — [requirement.md](requirement.md).
@@ -81,7 +82,7 @@ The analyst role produces and maintains every `feature.md`. The test-designer ro
 - **Created** when a new feature is identified — the analyst picks the next free `FT-NNN`, creates the folder `docs/features/FT-NNN-{kebab}/`, writes `feature.md`, and adds at least one flow under `flows/`.
 - **Updated in place** when the feature evolves. Re-add / remove flows in the Flow index when flows are added / split / removed.
 - **Renamed:** the `{kebab}` suffix may be renamed when the feature title changes; the `FT-NNN` stays the same. The folder rename is a single commit. Update any cross-references in `REQUIREMENT.md`, other feature files, and tests.
-- **Deleted** when the feature is retired. Delete the whole folder. Open `BL-NNN` / `BG-NNN` referencing the feature must be closed or re-targeted first.
+- **Deleted** when the feature is retired. Delete the whole folder (including `flows/` and `dataflows/`). Open `BL-NNN` / `BG-NNN` referencing the feature must be closed or re-targeted first.
 
 ## Rules
 
@@ -95,4 +96,5 @@ The analyst role produces and maintains every `feature.md`. The test-designer ro
 
 - [requirement.md](requirement.md) — the global FRs this feature realises.
 - [flow.md](flow.md) — the per-route doc each feature contains.
+- [data-flow.md](data-flow.md) — the architect-owned `dataflows/` subfolder each feature carries.
 - [id-taxonomy.md](id-taxonomy.md) — the `FT-NNN` and `FL-NNN` numbering rules.

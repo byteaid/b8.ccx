@@ -2,9 +2,9 @@
 
 ## Purpose
 
-A flow document answers: *exactly what happens when an actor takes one specific route through a feature?* It is the most granular unit of desired-state documentation — one possible path = one flow = one real test.
+A flow document answers: *exactly what happens when an actor takes one specific route through a feature?* It is the most granular **actor-facing** unit of desired-state documentation — one possible path = one flow = one real test. (The implementation-facing decomposition below it lives in the flow's `DF-NNN` data flows — see [data-flow.md](data-flow.md).)
 
-It is read by: the test-designer (to write the test that realises this flow), the developer (to know which user-visible behaviour must remain intact), the analyst (to keep the route faithful to the user's intent).
+It is read by: the test-designer (to write the test that realises this flow), the developer (to know which user-visible behaviour must remain intact), the analyst (to keep the route faithful to the user's intent), the architect (to derive the flow's `DF-NNN` data flows).
 
 ## Owner
 
@@ -39,7 +39,8 @@ A flow represents exactly one possible path through the system. If the user clic
 ## What does NOT go in
 
 - Multiple routes in one file. Branches go in separate `FL-NNN-{kebab}.md` files.
-- Implementation details (controllers, endpoints, queries) — those live in [solution.md](solution.md).
+- The data's step-by-step journey through the system (entry point, transformations, specific infrastructure) — that is the architect's [data-flow.md](data-flow.md), 1..N `DF-NNN` files per flow under the sibling `dataflows/` folder.
+- Infrastructure and app topology — those live in [solution.md](solution.md).
 - Unit tests, mock-based tests, in-memory replacements — see § Test rules below.
 
 ## Format
@@ -78,7 +79,7 @@ Assertions: {what the test checks — status code, body shape, UI element, side-
 ### Concrete example
 
 ```markdown
-# FL-002 — Login con contraseña incorrecta
+# FL-002 — Login with wrong password
 
 **Feature:** FT-001 (Login)
 **FR coverage:** FR-003, FR-005
@@ -125,7 +126,7 @@ Owned by the per-stack test-designer skill (e.g. `dotnet-test-designer`), but en
 - **`## Test` populated** by the test-designer when the test class/method is authored. The FQN in the doc and the actual code must agree exactly.
 - **Updated in place** when the route changes. No history, no Decisions log.
 - **Renamed:** `{kebab}` may be renamed when the route description changes; `FL-NNN` stays stable. Update the test FQN if renaming requires it.
-- **Deleted** when the route is retired. Delete the file. The corresponding test file should be deleted in the same commit; the test-designer is responsible.
+- **Deleted** when the route is retired. Delete the file. The corresponding test file and the flow's `DF-NNN-*.md` data flows should be deleted in the same commit; the test-designer owns the former, the architect the latter.
 
 ## IDs
 
@@ -136,6 +137,7 @@ Owned by the per-stack test-designer skill (e.g. `dotnet-test-designer`), but en
 ## See also
 
 - [feature.md](feature.md) — the parent feature this flow belongs to.
+- [data-flow.md](data-flow.md) — the `DF-NNN` pipelines (architect-owned) that specify how the code realises this route.
 - [requirement.md](requirement.md) — the FRs this flow covers.
 - [id-taxonomy.md](id-taxonomy.md) — the `FL-NNN` numbering rules.
 - Per-stack test-designer skill — the role that fills the `## Test` FQN (e.g. agent `dotnet-test-designer` for .NET).

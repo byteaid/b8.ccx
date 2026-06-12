@@ -8,7 +8,7 @@ It is read by: the analyst role (to keep `FR-NNN` and `NFR-NNN` aligned with use
 
 ## Owner
 
-The analyst role produces and maintains REQUIREMENT.md and every file under `docs/features/`. The owner uses focused interview questions to elicit goals and edge cases, and never invents requirements that the user did not state.
+The analyst role produces and maintains REQUIREMENT.md and the analyst's share of `docs/features/` (`feature.md` + `flows/`; the `dataflows/` subfolders are the architect's). The owner uses focused interview questions to elicit goals and edge cases, and never invents requirements that the user did not state.
 
 ## Where
 

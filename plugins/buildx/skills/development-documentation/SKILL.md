@@ -1,9 +1,9 @@
 ---
 name: development-documentation
-description: Canonical project documentation set every team-managed software project carries. Desired-state docs only — `docs/REQUIREMENT.md`, `docs/GLOSSARY.md`, `docs/DATA-MODEL.md`, `docs/SOLUTION.md`, and a hierarchical `docs/features/FT-NNN-{name}/{feature.md, flows/FL-NNN-{name}.md}` tree. Operational docs (`todo.md`, `backlog.md`, `bugs.md`, `debt.md`) live OUTSIDE the repo at `${OS_TEMP}/aix-todo/{repo-basename}/`. Greppable IDs (`FR-NNN` / `NFR-NNN` / `FT-NNN` / `FL-NNN` / `T-NNN` / `BL-NNN` / `BG-NNN` / `DT-NNN`). One file per concept, single-owner per file, English, markdown. Tech-agnostic — provider, framework, runtime independent. State docs are PURE desired state — no history sections, no Decisions log, no supersession trails (git log is the historical archive). Load when authoring, updating, auditing, or migrating any project doc.
+description: Canonical project documentation set every team-managed software project carries. Desired-state docs only — `docs/REQUIREMENT.md`, `docs/GLOSSARY.md`, `docs/DATA-MODEL.md`, `docs/SOLUTION.md`, and a hierarchical `docs/features/FT-NNN-{name}/{feature.md, flows/FL-NNN-{name}.md, dataflows/DF-NNN-{name}.md}` tree. Operational docs (`todo.md`, `backlog.md`, `bugs.md`, `debt.md`) live OUTSIDE the repo at `${OS_TEMP}/aix-todo/{repo-basename}/`. Greppable IDs (`FR-NNN` / `NFR-NNN` / `FT-NNN` / `FL-NNN` / `DF-NNN` / `T-NNN` / `BL-NNN` / `BG-NNN` / `DT-NNN`). One file per concept, single-owner per file, English, markdown. Tech-agnostic — provider, framework, runtime independent. State docs are PURE desired state — no history sections, no Decisions log, no supersession trails (git log is the historical archive). Load when authoring, updating, auditing, or migrating any project doc.
 when_to_use: |
-  - Triggers: REQUIREMENT.md, GLOSSARY.md, DATA-MODEL.md, SOLUTION.md, feature.md, flow.md, FR-NNN, NFR-NNN, FT-NNN, FL-NNN, BL-NNN, BG-NNN, T-NNN, DT-NNN, todo.md, backlog.md, bugs.md, debt.md, project documentation, docs folder, ID taxonomy, traceability, doc bootstrap, doc audit, initialize project, new project, blank repo, reverse engineer docs, migrate legacy docs, technical debt register.
-  - Tasks: bootstrap a new project's `docs/`; author or update REQUIREMENT / GLOSSARY / DATA-MODEL, a feature, or a flow; place a new flow under its feature folder; author or update SOLUTION; write the live `todo.md` / `backlog.md` / `bugs.md` / `debt.md` in the temp folder; reverse-engineer docs from existing code; migrate a legacy `REQUIREMENT.md` + `FLOWS.md` monolith into the hierarchical `features/` tree; audit a state doc for sneaked-in history; record or close a technical-debt row.
+  - Triggers: REQUIREMENT.md, GLOSSARY.md, DATA-MODEL.md, SOLUTION.md, feature.md, flow.md, data flow, dataflow, FR-NNN, NFR-NNN, FT-NNN, FL-NNN, DF-NNN, BL-NNN, BG-NNN, T-NNN, DT-NNN, todo.md, backlog.md, bugs.md, debt.md, project documentation, docs folder, ID taxonomy, traceability, doc bootstrap, doc audit, initialize project, new project, blank repo, reverse engineer docs, migrate legacy docs, technical debt register.
+  - Tasks: bootstrap a new project's `docs/`; author or update REQUIREMENT / GLOSSARY / DATA-MODEL, a feature, a flow, or a data flow; place a new flow or data flow under its feature folder; author or update SOLUTION; write the live `todo.md` / `backlog.md` / `bugs.md` / `debt.md` in the temp folder; reverse-engineer docs from existing code; migrate a legacy `REQUIREMENT.md` + `FLOWS.md` monolith into the hierarchical `features/` tree; audit a state doc for sneaked-in history; record or close a technical-debt row.
 allowed-tools: Edit, Glob, Grep, NotebookEdit, Read, Write
 user-invocable: false
 ---
@@ -16,16 +16,18 @@ L1 dispatcher. Concrete content lives in flat L2 leaves — one per canonical do
 
 A project's documentation is a **living artifact set with canonical names, a single owner per file, and a strict separation between desired state and operational queue.**
 
-- **Desired state lives in `docs/`** and is git-tracked. It describes what the system MUST be: the requirements, the domain vocabulary, the data model, the features, every possible flow, the chosen infrastructure. **No history, ever.** Supersession is in-place rewrite. The reason for any change is the commit message, not a Decisions log inside the doc. Git log is the historical archive.
+- **Desired state lives in `docs/`** and is git-tracked. It describes what the system MUST be: the requirements, the domain vocabulary, the data model, the features, every possible flow, the data pipelines that realise each flow, the chosen infrastructure. **No history, ever.** Supersession is in-place rewrite. The reason for any change is the commit message, not a Decisions log inside the doc. Git log is the historical archive.
 - **Operational queue lives in `${OS_TEMP}/aix-todo/{repo-basename}/`** and is NOT git-tracked. It is the work in flight: tasks for the current iteration (`todo.md`), open backlog items (`backlog.md`), open bugs (`bugs.md`), carried technical debt (`debt.md`). It churns continuously; closed items are deleted, their trace surviving via commits.
 
-Cross-document traceability is mechanical: `FR-NNN` ↔ `FT-NNN` ↔ `FL-NNN` ↔ `T-NNN` ↔ `BG-NNN` ↔ `DT-NNN`. A claim without an ID is a claim that cannot be cited.
+Cross-document traceability is mechanical: `FR-NNN` ↔ `FT-NNN` ↔ `FL-NNN` ↔ `DF-NNN` ↔ `T-NNN` ↔ `BG-NNN` ↔ `DT-NNN`. A claim without an ID is a claim that cannot be cited.
+
+The derivation chain inside `features/` is strict: features (`FT`) decompose into user flows (`FL` — the actor-observable routes), and each flow derives one or more **data flows** (`DF` — the step-by-step pipeline the code must implement, infrastructure named specifically). Flows are the analyst's; data flows are the architect's; data flows are the source of truth the developer implements against.
 
 The taxonomy is **technology-agnostic**. The same doc shapes apply to any stack. Stack-specific knowledge (the layout of source modules, the concrete code-inspection codes, the test-runner failure buckets) is owned by per-stack skills that this skill cross-references — never duplicates.
 
 ## Hard rules
 
-1. **Canonical names, exact case.** Desired-state docs: `docs/REQUIREMENT.md`, `docs/GLOSSARY.md`, `docs/DATA-MODEL.md`, `docs/SOLUTION.md`, `docs/features/FT-NNN-{kebab}/feature.md`, `docs/features/FT-NNN-{kebab}/flows/FL-NNN-{kebab}.md`. Operational docs: `${OS_TEMP}/aix-todo/{repo-basename}/{todo.md, backlog.md, bugs.md, debt.md}` (lowercase). Greppability across projects depends on this.
+1. **Canonical names, exact case.** Desired-state docs: `docs/REQUIREMENT.md`, `docs/GLOSSARY.md`, `docs/DATA-MODEL.md`, `docs/SOLUTION.md`, `docs/features/FT-NNN-{kebab}/feature.md`, `docs/features/FT-NNN-{kebab}/flows/FL-NNN-{kebab}.md`, `docs/features/FT-NNN-{kebab}/dataflows/DF-NNN-{kebab}.md`. Operational docs: `${OS_TEMP}/aix-todo/{repo-basename}/{todo.md, backlog.md, bugs.md, debt.md}` (lowercase). Greppability across projects depends on this.
 2. **One canonical doc per concept.** Sub-docs may be referenced from a canonical doc but never replace it. The L1 set is mandatory; auxiliary `.md` files are optional and cross-linked.
 3. **Location.** All desired-state docs live under `docs/` at the repo root. The three operational docs (`todo.md`, `backlog.md`, `bugs.md`) live **outside the repo** at `${OS_TEMP}/aix-todo/{repo-basename}/` because they churn continuously and have no audit value once their items close. See [folder-layout.md](folder-layout.md).
 4. **Markdown, English, git-tracked** (for everything under `docs/`). Even when conversational language with the user is something else, the docs themselves stay English.
@@ -35,6 +37,7 @@ The taxonomy is **technology-agnostic**. The same doc shapes apply to any stack.
 8. **Operational docs are ephemeral.** `todo.md` is rewritten per iteration. `backlog.md` / `bugs.md` items are deleted on close — the trace survives via commits, not via "closed items" sections. No `docs/archive/`. No compaction policy. No threshold checks.
 9. **Handback discipline names which docs were touched per delivery** — owned by the per-stack conventions skill (e.g. `dotnet-conventions` § build-quality/handback-format for .NET).
 10. **Compactness invariant — each desired-state doc is a lean index, not an encyclopedia.** The top-level docs (`REQUIREMENT.md`, `GLOSSARY.md`, `DATA-MODEL.md`, `SOLUTION.md`) carry only their own concern and **delegate all detail downward** to the hierarchical auxiliaries: per-feature prose lives in `features/FT-*/feature.md`, per-flow prose in `flows/FL-*.md`, and any deep-dive a SOLUTION section needs lives in a referenced sub-doc — never inlined upward. **Budget: ≤ ~400 lines per desired-state file.** A file over budget is a tripwire that lower-level detail has leaked up; it MUST be decomposed into its auxiliaries. **Decomposition is mandatory, not optional** — a repo carrying a bloated desired-state doc is treated exactly like the legacy monolithic format: bootstrap routes it to a hard-blocking decompose pass (see [bootstrap.md](bootstrap.md) § Variant `bloated-docs`) before any other work proceeds. Reader cost matters: every agent that plans, reviews, or reconciles re-reads these docs on each dispatch, so bloat is paid on every cycle.
+11. **Data flows are the implementation contract.** Every `FL-NNN` that requires implementation carries 1..N `DF-NNN` files (architect-owned) before the developer is dispatched; the developer brief names the `DF-NNN`(s) to implement or correct; the code must map step-by-step to the data flow (and vice versa — enforced by the reviewer rule `code-maps-to-dataflow`). Data flows name infrastructure specifically but never prescribe programming style. See [data-flow.md](data-flow.md).
 
 ## Master table — canonical docs
 
@@ -45,6 +48,7 @@ The taxonomy is **technology-agnostic**. The same doc shapes apply to any stack.
 | DATA-MODEL | `docs/DATA-MODEL.md` | analyst | desired state; entities + value objects + enums + ER diagram; rewritten in place | [data-model.md](data-model.md) |
 | Feature | `docs/features/FT-NNN-{kebab}/feature.md` | analyst | one per feature; description + FR cross-links; rewritten in place | [feature.md](feature.md) |
 | Flow | `docs/features/FT-NNN-{kebab}/flows/FL-NNN-{kebab}.md` | analyst (skeleton + test FQN field), test-designer (fills `## Test` FQN) | one per route; rewritten in place | [flow.md](flow.md) |
+| Data flow | `docs/features/FT-NNN-{kebab}/dataflows/DF-NNN-{kebab}.md` | architect | 1..N per flow; entry point + step-by-step pipeline + specific infrastructure; rewritten in place | [data-flow.md](data-flow.md) |
 | SOLUTION | `docs/SOLUTION.md` | architect | infrastructure + apps + comms + costs (dated); rewritten in place | [solution.md](solution.md) |
 | todo | `${OS_TEMP}/aix-todo/{repo-basename}/todo.md` | architect | live per-iteration `T-NNN` list; overwritten per iteration; NOT tracked | [todo.md](todo.md) |
 | backlog | `${OS_TEMP}/aix-todo/{repo-basename}/backlog.md` | orchestrator | open `BL-NNN` items only; closed items deleted; NOT tracked | [backlog.md](backlog.md) |
@@ -63,14 +67,14 @@ The "owner" column names a *role*. Where a deployed agent exists for a role, it 
 
 ## Desired-state invariant (apply on every state-doc write)
 
-Before saving REQUIREMENT.md, any `feature.md`, any `FL-NNN-*.md`, or SOLUTION.md, run this checklist. The doc PASSES only when all boxes are ticked.
+Before saving REQUIREMENT.md, any `feature.md`, any `FL-NNN-*.md`, any `DF-NNN-*.md`, or SOLUTION.md, run this checklist. The doc PASSES only when all boxes are ticked.
 
 - [ ] No section titled "History", "Previous", "Old", "Legacy", "Decisions log", "Changelog".
 - [ ] No prose like "It used to be …" / "We previously had …" / "Before vX, this …".
 - [ ] No `(superseded by FR-NNN)` annotations — superseded entries are rewritten in place or deleted; the prior text is removed.
 - [ ] Cost / version / date numbers are dated (`as of YYYY-MM-DD`) so a stale figure is recognisable.
 - [ ] Mermaid diagrams render in standard viewers; deprecated nodes have been removed, not greyed out.
-- [ ] Cross-references resolve: every cited `FR-NNN` / `FT-NNN` / `FL-NNN` exists in the named owning doc.
+- [ ] Cross-references resolve: every cited `FR-NNN` / `FT-NNN` / `FL-NNN` / `DF-NNN` exists in the named owning doc.
 - [ ] No claim of work-in-progress, blockers, or task status — those live in the operational queue.
 - [ ] Compact — the doc carries only its own concern, delegates detail to its auxiliaries, and is within the ≤ ~400-line budget (hard rule 10). Detail that belongs in a `feature.md` / `FL-*.md` / referenced sub-doc has not leaked up.
 

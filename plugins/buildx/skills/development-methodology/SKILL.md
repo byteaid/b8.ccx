@@ -1,6 +1,6 @@
 ---
 name: development-methodology
-description: The team's canonical development methodology is "test-first orchestrated" — the test-designer writes the failing real test BEFORE the developer touches production code; the developer implements until the test passes; the developer runs `dotnet test` to verify. There is no TDD/direct selection: the cycle is fixed and the orchestrator enforces it. The methodology is language-agnostic in shape (the same cycle applies to any stack with a real test surface) but stack-specific in tooling (per-stack test-designer + per-stack developer skills + per-stack test runner). Real tests only (HTTP / UI / gRPC / CLI / queue); no unit tests, no mocks, no test-only adaptations in production code.
+description: The team's canonical development methodology is "test-first orchestrated" — the architect designs the per-flow data flows (`DF-NNN`, the step-by-step implementation contract) and the test-designer writes the failing real test BEFORE the developer touches production code; the developer implements the briefed data flows until the test passes; the developer runs `dotnet test` to verify. There is no TDD/direct selection: the cycle is fixed and the orchestrator enforces it. The methodology is language-agnostic in shape (the same cycle applies to any stack with a real test surface) but stack-specific in tooling (per-stack test-designer + per-stack developer skills + per-stack test runner). Real tests only (HTTP / UI / gRPC / CLI / queue); no unit tests, no mocks, no test-only adaptations in production code.
 when_to_use: |
   - Trigger keywords: methodology, test-first, real test, failing test, "make the test pass", orchestration cycle, who writes the test, can I add a mock, can I add an env-test branch, /__test__ endpoint.
   - Task shapes: starting any non-trivial coding task and needing to confirm the order; auditing whether an in-flight change followed the cycle; deciding whether a failing test reveals missing production code or a misframed flow.
@@ -16,22 +16,30 @@ L1 leaf. The methodology is fixed: **test-first orchestrated**. The choice is no
 
 ```
 1. analyst confirms desired state (REQUIREMENT.md, features/**, including the affected FL-NNN)
-2. dotnet-test-designer writes the failing real test for each affected FL-NNN
+2. dotnet-architect designs/updates the data flows (DF-NNN, 1..N per affected FL-NNN)
+   - entry point + step-by-step pipeline + specific infrastructure per step
+   - SOLUTION.md updated in the same pass if a step needs infrastructure not yet listed
+   - the DF files are the implementation contract the developer will be briefed with
+3. dotnet-test-designer writes the failing real test for each affected FL-NNN
    - FQN recorded in the flow file's `## Test` block
-3. dotnet-architect plans the implementation (todo.md, T-NNN blocks of 10)
-4. dotnet-developer implements the production code
-   - reads the test as the contract
-   - writes the minimum production code to satisfy the test
+   - reads the DF-NNN files to pick seed strategies and sharpen side-effect assertions
+4. dotnet-architect plans the implementation (todo.md, T-NNN blocks of 10)
+5. dotnet-developer implements the production code
+   - reads the test as the contract for observable behaviour
+   - reads the briefed DF-NNN files as the contract for the internal pipeline —
+     the code must map step-by-step; deviation = stop and escalate (architect rewrites the DF first)
+   - writes the minimum production code to satisfy both
    - does NOT touch the test
    - does NOT add test-only adaptations to production
    - applies the canonical rules at write-time (try/catch must do work; DI motor only;
      search-before-create; hexagonal invariants; English only incl. enums/constants/routes;
      no secrets in VCS; no magic literals — constants + enums; exceptions logged, never leaked [P0])
-5. dotnet-developer runs `dotnet test --filter "FullyQualifiedName~{FQN}"`, then full `dotnet test`
-6. dotnet-reviewer second-pass review — registers carried rule violations to debt.md (DT-NNN rows),
+6. dotnet-developer runs `dotnet test --filter "FullyQualifiedName~{FQN}"`, then full `dotnet test`
+7. dotnet-reviewer second-pass review — registers carried rule violations to debt.md (DT-NNN rows),
+   verifies the code↔data-flow mapping (`code-maps-to-dataflow`, blocker),
    discriminates slice-scope `active` from project-level `structural`. Blocker rows are cleared
    by re-dispatching dotnet-developer (or dotnet-test-designer if a test must change) BEFORE closure.
-7. orchestrator closes the slice (delete the backlog/bugs row, delete any cleared debt rows, commit)
+8. orchestrator closes the slice (delete the backlog/bugs row, delete any cleared debt rows, commit)
 ```
 
 The cycle is enforced by `buildx`. Subagents do not pick the cycle, do not switch its order, and do not skip steps.
@@ -47,6 +55,7 @@ The cycle is enforced by `buildx`. Subagents do not pick the cycle, do not switc
 7. **One slice = one block of GREEN.** Bundling three features behind one test invalidates the cycle. One flow → one test → one or more developer tasks → GREEN.
 8. **Three-attempts-then-search.** If three RED→fix attempts fail to produce a clean GREEN, STOP and re-read the spec / search official docs. See `dotnet-conventions` § three-attempts-then-search.
 9. **No backfilled tests.** Writing the production code first and "adding a test that proves it works" is not the cycle. If the developer realises they implemented something the test does not cover, the test-designer is dispatched to extend the test BEFORE the developer continues.
+10. **Data flows before code.** The developer is never dispatched on a flow whose `DF-NNN` data flows are missing or stale — the architect's data-flow pass (step 2) precedes everything downstream. The developer brief names the exact `DF-NNN`(s) to implement or correct; code that deviates from the documented pipeline without an architect rewrite is a `blocker` (`code-maps-to-dataflow`).
 
 ## When the cycle does not apply
 

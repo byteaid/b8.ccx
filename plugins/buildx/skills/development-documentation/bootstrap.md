@@ -37,15 +37,16 @@ Working directory is blank. The user describes what they want; the conversation 
 5. **Identify features.** Group related FRs into `FT-NNN` features. For each feature create `docs/features/FT-NNN-{kebab}/feature.md`. See [feature.md](feature.md).
 6. **Sketch flows.** For each feature draft at least one `FL-NNN-{kebab}.md` under `flows/`. Each flow is one route. See [flow.md](flow.md). Tests are not written yet but the `## Test` block exists with a tentative FQN.
 7. **Propose the solution.** Pick infrastructure / apps / communication / vendors; record in `docs/SOLUTION.md` with dated cost figures. See [solution.md](solution.md).
-8. **Seed the operational queue.** Create `${OS_TEMP}/aix-todo/{repo-basename}/{backlog.md,bugs.md,debt.md}` empty. `todo.md` is born when the first iteration plans.
-9. **Plan iteration 1.** The architect writes the live `todo.md` with the first slice of `BL-NNN` to deliver. See [todo.md](todo.md).
-10. **Write tests.** The test-designer creates the per-flow real tests; updates each `FL-NNN-*.md` `## Test` FQN. See per-stack test-designer skill.
-11. **Implement.** The developer makes the tests pass.
-12. **Review.** The reviewer scans the implementation and registers any rule violations into `debt.md`. See [debt.md](debt.md) and per-stack reviewer agent.
+8. **Design the data flows.** The architect derives 1..N `DF-NNN-{kebab}.md` per flow under each feature's `dataflows/` folder: entry point, step-by-step pipeline, specific infrastructure (every component resolving to a SOLUTION.md row). See [data-flow.md](data-flow.md). No flow enters implementation without its data flows.
+9. **Seed the operational queue.** Create `${OS_TEMP}/aix-todo/{repo-basename}/{backlog.md,bugs.md,debt.md}` empty. `todo.md` is born when the first iteration plans.
+10. **Plan iteration 1.** The architect writes the live `todo.md` with the first slice of `BL-NNN` to deliver. See [todo.md](todo.md).
+11. **Write tests.** The test-designer creates the per-flow real tests; updates each `FL-NNN-*.md` `## Test` FQN. See per-stack test-designer skill.
+12. **Implement.** The developer makes the tests pass, implementing exactly the pipelines the `DF-NNN` files specify.
+13. **Review.** The reviewer scans the implementation and registers any rule violations into `debt.md` — including the code↔data-flow mapping check. See [debt.md](debt.md) and per-stack reviewer agent.
 
 ### Stop conditions
 
-- REQUIREMENT.md, GLOSSARY.md, DATA-MODEL.md, and at least one feature with one flow exist, IDs cross-link cleanly, SOLUTION.md is dated.
+- REQUIREMENT.md, GLOSSARY.md, DATA-MODEL.md, and at least one feature with one flow and its data flow(s) exist, IDs cross-link cleanly, SOLUTION.md is dated.
 - Coding does NOT start before this point. If the user pushes earlier, surface that the design IDs are not stable yet and ask explicitly.
 
 ## Variant b — documentation without code
@@ -54,13 +55,13 @@ Working directory has `docs/` in the new hierarchical shape but no implementatio
 
 ### Playbook
 
-1. **Inventory.** List every file under `docs/`. Confirm structure (`REQUIREMENT.md` + `GLOSSARY.md` + `DATA-MODEL.md` + `SOLUTION.md` + `features/FT-*/feature.md` + `.../flows/FL-*-*.md`).
+1. **Inventory.** List every file under `docs/`. Confirm structure (`REQUIREMENT.md` + `GLOSSARY.md` + `DATA-MODEL.md` + `SOLUTION.md` + `features/FT-*/feature.md` + `.../flows/FL-*-*.md` + `.../dataflows/DF-*-*.md`).
 2. **Compliance pass.** For each canonical doc, open it, check structure against its leaf rules, repair drift (missing IDs, broken cross-references, stale dates).
-3. **Gap report.** List every L1 doc that is missing OR below threshold (e.g. a feature folder with no flows; a missing `GLOSSARY.md` / `DATA-MODEL.md`; a glossary entry referenced in REQUIREMENT.md that has no definition).
-4. **Refine in place.** With the user, drive each gap to closure — same elicitation moves as variant **a**, starting from the existing material instead of blank. Per the default behaviour, **`GLOSSARY.md` and `DATA-MODEL.md` MUST exist after this step**; if they are missing, the analyst seeds them now (this is a hard requirement for variant b on any repo bootstrapped under v0.5.0 or later).
+3. **Gap report.** List every L1 doc that is missing OR below threshold (e.g. a feature folder with no flows; a flow with no data flow; a missing `GLOSSARY.md` / `DATA-MODEL.md`; a glossary entry referenced in REQUIREMENT.md that has no definition).
+4. **Refine in place.** With the user, drive each gap to closure — same elicitation moves as variant **a**, starting from the existing material instead of blank. Per the default behaviour, **`GLOSSARY.md` and `DATA-MODEL.md` MUST exist after this step**; if they are missing, the analyst seeds them now (this is a hard requirement for variant b on any repo bootstrapped under v0.5.0 or later). Flows lacking data flows get them from the architect (per [data-flow.md](data-flow.md)) before any implementation is sequenced.
 5. **ID consolidation.** Renumber if a prefix has duplicates; otherwise leave IDs stable. Run a grep across `docs/` to confirm every cited ID resolves.
 6. **Seed operational queue** in temp (`backlog.md`, `bugs.md`, `debt.md` — `todo.md` is born when iteration 1 plans).
-7. **Plan iteration 1, write tests, implement, review** — same as variant a steps 9–12.
+7. **Plan iteration 1, write tests, implement, review** — same as variant a steps 10–13.
 
 ## Variant c — code without (or with insufficient) documentation
 
@@ -122,6 +123,7 @@ Wait for explicit `yes`. Do not default.
 5b. **Create `docs/GLOSSARY.md`** by extracting every domain term referenced in REQUIREMENT.md and the new feature/flow set. Confirm contested terms with the user before recording.
 5c. **Create `docs/DATA-MODEL.md`** from the entity/value-object/enum names referenced in REQUIREMENT.md and (if applicable) the structural section of legacy `ARCHITECTURE.md`. Storage specifics from ARCHITECTURE.md go to SOLUTION.md, not here.
 6. **Fold `docs/ARCHITECTURE.md` into `docs/SOLUTION.md`** (executed by `dotnet-architect` after analyst completes the desired-state pass). The architecture content (components, communication, data model, environment strategy) joins the existing SOLUTION sections.
+6b. **Derive data flows** (executed by `dotnet-architect` in the same migration). For each migrated flow, read the code that realises it and record the existing pipeline as 1..N `DF-NNN-{kebab}.md` under the owning feature's `dataflows/` folder per [data-flow.md](data-flow.md) — describe what IS, not a redesign.
 7. **Delete** `docs/FLOWS.md`, `docs/ARCHITECTURE.md`, `docs/PROGRESS.md`, `docs/CHANGELOG.md`, `docs/ASSESSMENT.md`, `docs/CODE_INSPECTION.md`, `docs/archive/`. Strip Decisions logs from all surviving state docs.
 8. **Move (or create)** `BACKLOG.md` and `BUGS.md` to `${OS_TEMP}/aix-todo/{repo-basename}/` as `backlog.md` and `bugs.md`. Open items only; closed items are dropped (the trace lives in `git log`). Create an empty `debt.md` in the same folder — the reviewer will populate it after step 10.
 9. **Commit** the migration in one or more commits with messages explaining the new structure.
@@ -147,13 +149,13 @@ Wait for explicit `yes`. Do not default.
 ### Decomposition playbook (the owner of each bloated doc executes; orchestrator routes)
 
 1. **Identify the leaked content.** For each over-budget doc, classify every section as either *belongs here* (the doc's own concern per its leaf) or *leaked* (per-feature, per-flow, or deep-dive detail).
-2. **Move leaked content to its rightful auxiliary.** Per-feature prose → the owning `docs/features/FT-*/feature.md`. Per-flow prose → the owning `flows/FL-*.md`. A SOLUTION deep-dive → a referenced sub-doc (e.g. `docs/solution/AUTH-DESIGN.md`) linked from `SOLUTION.md`. Create the auxiliary if it does not exist; never drop information in the move.
+2. **Move leaked content to its rightful auxiliary.** Per-feature prose → the owning `docs/features/FT-*/feature.md`. Per-flow prose → the owning `flows/FL-*.md`. A per-route pipeline treatment inside `SOLUTION.md` → the owning `dataflows/DF-*.md`. A SOLUTION deep-dive → a referenced sub-doc (e.g. `docs/solution/AUTH-DESIGN.md`) linked from `SOLUTION.md`. Create the auxiliary if it does not exist; never drop information in the move.
 3. **Rewrite the top-level doc as an index.** What remains is its own concern plus cross-links down (`REQUIREMENT.md` = FR/NFR + feature index; `SOLUTION.md` = apps/comms/infra/cost + links to sub-docs). Confirm it is now within budget.
 4. **Re-verify IDs and cross-references** — grep `docs/` so every cited `FR-NNN` / `FT-NNN` / `FL-NNN` still resolves after the move.
 5. **Run the desired-state invariant** (SKILL § Desired-state invariant) on every touched file, including the new compactness box.
 6. **Commit** the decomposition with a message explaining what moved where.
 
-Ownership: `analyst` decomposes `REQUIREMENT.md` / `GLOSSARY.md` / `DATA-MODEL.md` / `feature.md` / `FL-*.md`; the architect decomposes `SOLUTION.md`. After this completes, the repo is in steady state.
+Ownership: `analyst` decomposes `REQUIREMENT.md` / `GLOSSARY.md` / `DATA-MODEL.md` / `feature.md` / `FL-*.md`; the architect decomposes `SOLUTION.md` (including relocating leaked pipeline detail into `dataflows/DF-*.md`). After this completes, the repo is in steady state.
 
 ## Variant `existing-code-greenfield-docs` — code exists, no docs, user picked full reverse
 
@@ -166,14 +168,15 @@ Code is present, no `docs/` exists, the user picked sub-variant `c1`. The proced
 3. **Derive GLOSSARY.** From code identifiers (entity / value-object / enum names) and the FRs just written, extract every domain term into `docs/GLOSSARY.md`. Confirm with the user any term whose business meaning is not obvious from code shape.
 4. **Derive DATA-MODEL.** From the type definitions, ORM models, and DTOs, build `docs/DATA-MODEL.md` (entities, value objects, enums, ER diagram, invariants). Persistence specifics stay out — they go to SOLUTION.md.
 5. **Derive features.** Group FRs into `FT-NNN`. Create `docs/features/FT-NNN-{kebab}/feature.md` for each.
-6. **Derive flows.** From every entry point (HTTP route, CLI verb, UI screen, message handler), produce one or more `FL-NNN-{kebab}.md`. The `## Test` FQN is filled in step 9.
+6. **Derive flows.** From every entry point (HTTP route, CLI verb, UI screen, message handler), produce one or more `FL-NNN-{kebab}.md`. The `## Test` FQN is filled in step 10.
 7. **Derive SOLUTION.** From the dependency graph, deployment manifests, and runtime config, name infrastructure / apps / communication. Cost figures: skip unless the user provides them; do not guess.
-8. **Enrol in Aspire** (per-stack — for .NET this means scaffolding `Company.Product.AppHost` and wiring all discovered projects). Owned by the architect via `dotnet-aspire` (or the matching per-stack skill).
-9. **Write tests.** The test-designer creates the per-flow real tests (Playwright / HTTP / CLI / gRPC); updates each `FL-NNN-*.md` `## Test` FQN.
-10. **Seed the operational queue** in temp (`backlog.md`, `bugs.md`, `debt.md`; `todo.md` is born when iteration 1 plans).
-11. **Initial review pass.** The reviewer scans the existing code against the conventions and registers every carried rule violation into `debt.md` — typically a `structural` row per project-level non-conformance the user explicitly accepted during reverse-engineering (no DI, partial hexagonal, etc.).
+8. **Derive data flows.** The architect reads the code behind each flow and records the pipeline as it actually exists — entry point, step-by-step transformations, the specific infrastructure each step touches (every component resolving to a SOLUTION.md row) — as 1..N `DF-NNN-{kebab}.md` under the owning feature's `dataflows/` folder. Describe the pipeline that IS, not a target redesign. See [data-flow.md](data-flow.md).
+9. **Enrol in Aspire** (per-stack — for .NET this means scaffolding `Company.Product.AppHost` and wiring all discovered projects). Owned by the architect via `dotnet-aspire` (or the matching per-stack skill).
+10. **Write tests.** The test-designer creates the per-flow real tests (Playwright / HTTP / CLI / gRPC); updates each `FL-NNN-*.md` `## Test` FQN.
+11. **Seed the operational queue** in temp (`backlog.md`, `bugs.md`, `debt.md`; `todo.md` is born when iteration 1 plans).
+12. **Initial review pass.** The reviewer scans the existing code against the conventions and registers every carried rule violation into `debt.md` — typically a `structural` row per project-level non-conformance the user explicitly accepted during reverse-engineering (no DI, partial hexagonal, etc.).
 
-Hard rule: **never modify production code during steps 1–8**. The pass is read-only on the codebase. Tests in step 9 are additive and must not require any production-code change. The review in step 11 only writes `debt.md`; it does not touch code.
+Hard rule: **never modify production code during steps 1–9**. The pass is read-only on the codebase. Tests in step 10 are additive and must not require any production-code change. The review in step 12 only writes `debt.md`; it does not touch code.
 
 ### Common pitfalls
 
@@ -207,5 +210,5 @@ docs + code coherent AND all top-level docs within budget → steady state
 - [skill.md](skill.md) — the master table of canonical docs the bootstrap produces.
 - [folder-layout.md](folder-layout.md) — where the files land and what is git-tracked.
 - [id-taxonomy.md](id-taxonomy.md) — the ID prefixes the bootstrap seeds across the docs.
-- [requirement.md](requirement.md), [feature.md](feature.md), [flow.md](flow.md), [solution.md](solution.md) — the desired-state docs.
+- [requirement.md](requirement.md), [feature.md](feature.md), [flow.md](flow.md), [data-flow.md](data-flow.md), [solution.md](solution.md) — the desired-state docs.
 - [todo.md](todo.md), [backlog.md](backlog.md), [bugs.md](bugs.md) — the operational queue.
