@@ -67,9 +67,9 @@ builder.AddFileLogging(Path.Combine(AppContext.BaseDirectory, "logs"));
 builder.Build().Run();
 ```
 
-### 4.2 MSTest integration test (`[ClassInitialize]`)
+### 4.2 MSTest integration test (the canonical `AppHostFixture`)
 
-The per-class mount from `dotnet-testing` § mstest-integration. The artefact root comes from `TestContext.TestRunResultsDirectory` via the `TestArtifacts.RunDir(context)` helper defined in that skill:
+The centralized fixture from `dotnet-testing` § mstest-integration mounts one AppHost per derived test class; `AddFileLogging` is called once, inside the fixture. The artefact root comes from `TestContext.TestRunResultsDirectory` via the `TestArtifacts.RunDir(context)` helper defined in that skill (never from a `BLAZTRAP_TEST_RUN_DIR`-style env var, never an in-repo folder):
 
 ```csharp
 [ClassInitialize]

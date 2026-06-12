@@ -178,7 +178,7 @@ Orchestrator agent for end-to-end software delivery. Bundles:
   - `dotnet-test-designer` — writes the per-flow real integration tests.
   - `dotnet-developer` — implements until tests pass.
   - `dotnet-reviewer` — second-pass review of the developer's output; owns the out-of-repo `debt.md`.
-- **Skills** (`plugins/buildx/skills/`): `development-documentation`, `development-methodology`, plus the .NET / ASP.NET Core / Playwright / Aspire / EF Core / hexagonal-architecture / scripting / serialization / testing bundle (~37 skills).
+- **Skills** (`plugins/buildx/skills/`): `development-documentation`, `development-methodology`, the user-invocable `/dotnet-test-upgrade` migration procedure (conforms an existing test suite to the current `dotnet-testing` canon via the documentation > tests pipeline, purging non-conforming code and dispersed artefacts), plus the .NET / ASP.NET Core / Playwright / Aspire / EF Core / hexagonal-architecture / scripting / serialization / testing bundle (~37 skills).
 
 Spec lives in `plugins/buildx/agents/buildx.md`. Subagent dispatch contract is described there — do not duplicate it here.
 

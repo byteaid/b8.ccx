@@ -268,11 +268,11 @@ var partner = builder.AddPartnerApi(useReal);
 ### Local development
 Default to emulators only. Real-mode env vars are not set on developer machines.
 
-### CI — emulated job
-Any runner with Docker; no secrets. The default test profile.
+### CI — default test run
+Any runner with Docker; zero env vars, zero secrets. The suite runs the emulator/stub topology — there is no real-infra test job and no `TestCategory` filter (`dotnet-testing` § mstest-integration § "One suite, one topology": emulators ARE real infra; a default run needing a credential means a resource escaped the AppHost).
 
-### CI — real-infra job
-Separate job, federated identity (OIDC / workload identity), no static credentials. Secrets sourced from Key Vault or pipeline variables, exposed as env vars to `dotnet test`. Filter: `--filter "TestCategory=RealInfra"` (see [integration-testing.md](integration-testing.md) § 6).
+### CI — real-mode test run (optional)
+The **same whole suite, no filter, no code difference**: the test project's consolidated `TestSettings.AppHostArgs()` forwards `UseRealInfrastructure=true` plus connection strings to `DistributedApplicationTestingBuilder.CreateAsync` from `TESTRUN_*` env vars (`dotnet-testing` § mstest-integration § TestSettings). Separate pipeline with federated identity (OIDC / workload identity), no static credentials, secrets sourced from Key Vault or pipeline variables. The flag also drives `aspire run` for exploratory provisioning and post-deploy smoke.
 
 ## 8. Operational guidance
 
@@ -291,4 +291,4 @@ Separate job, federated identity (OIDC / workload identity), no static credentia
 - Live (LocalStack): https://docs.localstack.cloud/overview/
 - Live (WireMock): https://wiremock.org/docs/
 - Live (Microcks): https://microcks.io/
-- Sibling: [integration-testing.md](integration-testing.md) — passing `UseRealInfrastructure=true` from a fixture.
+- Sibling: [integration-testing.md](integration-testing.md) — mounting the AppHost from MSTest (always the emulator/stub topology).

@@ -172,7 +172,127 @@ gci -Recurse src -Include *.cs | Select-String "AddSingleton<.*Fake.*>|Mock<"
 
 Empty in `src/`.
 
-## 5. Editing tests outside the testing scope
+## 5. Hand-rolled fakes inside the test project
+
+### What it looks like
+
+```csharp
+// Inside Company.Product.Test — no Moq anywhere, but:
+private sealed class EmbeddedTemplateStore : INotificationTemplateStore
+{
+    public Task<string> GetBodyAsync(string key, CancellationToken ct) =>
+        Task.FromResult(ReadEmbeddedResource(key));   // canned answer
+}
+
+private sealed class NoOpSharedAssetStore : INotificationSharedAssetStore { ... }
+
+// Or: an in-process listener standing in for a real downstream
+var sink = new HttpListener();          // "recording webhook sink" living in the test process
+sink.Prefixes.Add("https://127.0.0.1:5599/");
+```
+
+### Why it's banned
+
+1. **A class in the test project implementing a production port IS a mock** — the absence of `Moq` in the `.csproj` changes nothing. The component under test runs against a hand-written canned object graph, not the one that ships.
+2. **It evades the greppable enforcement** (§ 1 only catches packages), which is precisely why it accumulates: each instance looks small and "pragmatic".
+3. **In-process sinks are stub projects that refused to be one.** An `HttpListener` inside the test process is invisible to the AppHost topology, unlogged by `Blaztrap.Aspire.FileLogging`, and unusable from `aspire run`.
+
+### What to do instead
+
+| Reason you reached for the fake | Correct answer |
+|---|---|
+| Component needs data a store serves | Seed the REAL store (blob container, DB) via [seeding.md](seeding.md) and drive the component through its real surface. |
+| Need to capture an outbound call (webhook, mail, partner API) | Stub **project** registered in the AppHost; it records to a file under the artefact root and the test reads that file. |
+| The behaviour is "too internal" to reach through a surface | That is a missing real surface or a mis-modelled flow — escalate to `dotnet-architect` / `analyst`. Do not test the internals directly. |
+
+`FakeTimeProvider` inside the test class remains the ONE sanctioned in-test double (deterministic time; see § 1).
+
+### Enforcement
+
+```powershell
+# Test classes implementing production-looking ports — review every hit
+gci -Recurse test -Include *.cs | Select-String "(class|record)\s+\w+\s*:\s*I[A-Z]\w+(Store|Repository|Client|Sender|Service|Provider|Publisher)"
+# In-process sinks
+gci -Recurse test -Include *.cs | Select-String "new HttpListener|WebApplication.Create"
+```
+
+Both must come back empty (or only `FakeTimeProvider` usages).
+
+## 6. In-process "guard" / composition / parity tests
+
+### What it looks like
+
+```csharp
+// Folders that should not exist: Hosting/, Authorization/, Notifications/, Permissions/ ...
+[TestClass]
+public class WebHostNotificationDiValidationTests   // builds the host, asserts DI graph
+[TestClass]
+public class AuthenticationStateClaimsRoundTripTests // serializer round-trip, no surface
+[TestClass]
+public class SlimDomainEventRichInterfaceParityTests // reflection parity check
+// usually decorated with: // INTENTIONAL-ORPHAN: cross-cutting guard
+```
+
+### Why it's banned
+
+1. **They are unit tests under a euphemism.** "Guard", "composition check", "parity test", "contract test" — none reaches the system through an executable surface, so none proves the shipped behaviour.
+2. **The orphan marker is not an exemption from the hard rules.** `// INTENTIONAL-ORPHAN` exists for a real-surface test that has no flow (an environment smoke test) — it never converts an in-process test into a legal one.
+3. **They breed folders outside the surface taxonomy** (`Hosting/`, `Authorization/`, …), and each new folder normalises the next violation.
+4. **The failure they guard against is reachable through a real surface.** A broken DI registration fails the resource's health check at mount; a broken serializer breaks the UI flow that round-trips the claim; a parity break surfaces in the queue flow that consumes the event.
+
+### What to do instead
+
+| The guard's intent | Correct answer |
+|---|---|
+| "App must start with a valid DI graph" | Already covered: every fixture mount waits for the resource to be `Healthy`. A DI failure fails every test in the class with `apphost.log` pointing at the cause. |
+| "Serialized X must round-trip" | The UI / HTTP / queue flow that carries X asserts the observable result. |
+| "Template must render all fields" | Drive the flow that sends the message; assert the captured payload from the stub project. |
+| "Two interfaces must stay in sync" | An analyzer or a compile-time check in the production solution — not a test. |
+
+When the migration target is unclear, delete the guard and record the gap as a `BG-NNN` — a misleading green check is worse than a visible gap.
+
+### Enforcement
+
+Any `[TestClass]` that (a) does not inherit `AppHostFixture` and (b) is not a pure client of an external surface (CLI child process) is a finding. Any folder outside the derived surface set ([layout.md](layout.md) § Surface folders) is a finding.
+
+## 7. Legacy / dispersed log capture
+
+### What it looks like
+
+```xml
+<PackageReference Include="Blaztrap.Aspire.Testing.FileLogging" Version="0.1.1" />
+```
+
+```csharp
+appBuilder.AddResourceFileLogging(LogsDir);                     // legacy API — no apphost.log
+var dir = Environment.GetEnvironmentVariable("BLAZTRAP_TEST_RUN_DIR")
+       ?? Environment.GetEnvironmentVariable("MYAPP_RESOURCE_LOG_DIR");
+LogsDir = Path.Combine(repoRoot, "tests", "automated", className); // in-repo artefacts
+File.WriteAllText(".browser-session.json", state);               // repo-root session file
+```
+
+### Why it's banned
+
+1. **The legacy package drops `apphost.log`** — Aspire / DCP / dashboard output, which is where every "resource failed to start" diagnosis lives. A suite on the legacy package debugs blind.
+2. **In-repo artefact folders disperse the evidence.** Logs in `tests/automated/`, recordings somewhere else, trx under `TestResults/` — no single root to upload, archive, or post-mortem; agents end up "manually collecting" logs.
+3. **Env-var path overrides fork the truth.** `TestContext` already knows the run folder; a parallel env-var convention guarantees the two diverge.
+
+### What to do instead
+
+- `Blaztrap.Aspire.FileLogging` ≥ 0.1.0, `appHost.AddFileLogging(...)` — one call in `AppHostFixture`.
+- Every path derives from `TestArtifacts.RunDir(context)` / `TestArtifacts.AuthDir(context)` ([mstest-integration.md](mstest-integration.md) § Test artefacts).
+- Auth state at `TestResults/.auth/{role}-state.json`, generated **unattended** — a test that needs a human to complete sign-in (headed browser + manual SSO) is itself a finding; see `playwright-dotnet` § auth-storage.
+
+### Enforcement
+
+```powershell
+gci -Recurse -Filter *.csproj | Select-String "Blaztrap.Aspire.Testing.FileLogging"
+gci -Recurse test -Include *.cs | Select-String "AddResourceFileLogging|BLAZTRAP_TEST_RUN_DIR|_LOG_DIR|tests[/\\]automated"
+```
+
+Both must come back empty.
+
+## 8. Editing tests outside the testing scope
 
 ### What it looks like
 
