@@ -163,6 +163,7 @@ Secret handling: no secrets in source; values come from the platform's secret st
 ## Rules
 
 - **No history sections, no Decisions log, no `(superseded …)` annotations.** Pure desired state. Use `git log` to recover the past.
+- **Compact — SOLUTION.md is the HOW index, not a deep-dive vault.** Keep it within the ≤ ~400-line compactness budget (SKILL § hard rule 10). Each section is a summary plus a table; anything that grows into a multi-page treatment (a detailed auth design, a partitioning scheme, a sequence-by-sequence protocol spec) moves to a referenced sub-doc under `docs/solution/` and is linked from the relevant section — never inlined. Per-feature / per-flow detail never belongs here at all; it lives under `docs/features/`. The architect re-reads this file on every plan and SOLUTION pass, so bloat is paid on every dispatch. A SOLUTION.md over budget is a `bloated-docs` condition — decompose it per [bootstrap.md](bootstrap.md) § Variant `bloated-docs` before planning further work.
 - **One canonical SOLUTION.md per product.** Sub-docs (`AUTH_DESIGN.md`, `DATA_PARTITIONING.md`) may exist for deep dives and be referenced from here, but they never replace this file.
 - **Mermaid diagrams must render in standard markdown viewers** (GitHub, GitLab, common static-site generators). Keep node identifiers ASCII; quote labels with spaces.
 - **Verify pricing in the same session** as authoring or refreshing the Cost estimate. Stale / placeholder costs are not acceptable.

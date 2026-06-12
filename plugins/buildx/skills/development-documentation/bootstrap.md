@@ -16,7 +16,8 @@ Walk the repo root and decide which variant applies:
 | `docs/` exists with at least one file in the new hierarchical shape (`REQUIREMENT.md` + `features/FT-*/feature.md`), no code under `src/` | **b** — docs without code              |
 | Code present (any stack), `docs/` missing                                                                              | **c** — code without docs (ask sub-variant) |
 | `docs/REQUIREMENT.md` OR `docs/FLOWS.md` (monolithic) present, OR `docs/ARCHITECTURE.md` present, OR `docs/PROGRESS.md` / `CHANGELOG.md` / `ASSESSMENT.md` / `CODE_INSPECTION.md` present, OR `docs/archive/` present, AND `docs/features/` is missing | **legacy-docs** — old format detected (block until migrated) |
-| Code present AND new-format `docs/` present and coherent                                                               | steady state — skip bootstrap          |
+| New-format `docs/` present, but a top-level desired-state doc (`REQUIREMENT.md` / `GLOSSARY.md` / `DATA-MODEL.md` / `SOLUTION.md`) is over the ≤ ~400-line compactness budget (SKILL § hard rule 10) — detail that belongs in `feature.md` / `FL-*.md` / a sub-doc has leaked up | **bloated-docs** — new format but not decomposed (block until decomposed) |
+| Code present AND new-format `docs/` present, coherent, AND every top-level desired-state doc is within the compactness budget | steady state — skip bootstrap          |
 
 Edge cases:
 - `docs/` partial AND code partial → treat as **c**; the existing partial docs feed the reverse-engineering pass but do not exempt the project from the sub-variant choice.
@@ -128,6 +129,32 @@ Wait for explicit `yes`. Do not default.
 
 After step 10, the repo is in steady state.
 
+## Variant `bloated-docs` — new format, but a desired-state doc is not decomposed
+
+The repo is already in the hierarchical format (`docs/features/` exists), but at least one top-level desired-state doc has grown past the ≤ ~400-line compactness budget (SKILL § hard rule 10). The usual cause: per-feature / per-flow detail, or a SOLUTION deep-dive, was inlined upward instead of pushed into its auxiliary. Every planning / review / reconciliation dispatch then re-reads the bloated file, so the cost compounds on every cycle.
+
+### Hard rule — no work proceeds until decomposed
+
+This is a **mandatory** decomposition, blocking exactly like `legacy-docs`. The orchestrator MUST refuse to process any `BL-NNN` / `BG-NNN` / user request until it completes. The exact message:
+
+> One of your desired-state docs is over the compactness budget ({file} — {N} lines). The team's format keeps each top-level doc a lean index and pushes detail down into `features/FT-*/feature.md`, `flows/FL-*.md`, or a referenced sub-doc. I cannot work on this repo until that doc is decomposed. Accept decomposing?
+>
+> - **yes** — I will run the decomposition now and proceed.
+> - **no** — I will stop. The doc stays bloated and I will not process this request.
+
+Wait for explicit `yes`. Do not default.
+
+### Decomposition playbook (the owner of each bloated doc executes; orchestrator routes)
+
+1. **Identify the leaked content.** For each over-budget doc, classify every section as either *belongs here* (the doc's own concern per its leaf) or *leaked* (per-feature, per-flow, or deep-dive detail).
+2. **Move leaked content to its rightful auxiliary.** Per-feature prose → the owning `docs/features/FT-*/feature.md`. Per-flow prose → the owning `flows/FL-*.md`. A SOLUTION deep-dive → a referenced sub-doc (e.g. `docs/solution/AUTH-DESIGN.md`) linked from `SOLUTION.md`. Create the auxiliary if it does not exist; never drop information in the move.
+3. **Rewrite the top-level doc as an index.** What remains is its own concern plus cross-links down (`REQUIREMENT.md` = FR/NFR + feature index; `SOLUTION.md` = apps/comms/infra/cost + links to sub-docs). Confirm it is now within budget.
+4. **Re-verify IDs and cross-references** — grep `docs/` so every cited `FR-NNN` / `FT-NNN` / `FL-NNN` still resolves after the move.
+5. **Run the desired-state invariant** (SKILL § Desired-state invariant) on every touched file, including the new compactness box.
+6. **Commit** the decomposition with a message explaining what moved where.
+
+Ownership: `analyst` decomposes `REQUIREMENT.md` / `GLOSSARY.md` / `DATA-MODEL.md` / `feature.md` / `FL-*.md`; the architect decomposes `SOLUTION.md`. After this completes, the repo is in steady state.
+
 ## Variant `existing-code-greenfield-docs` — code exists, no docs, user picked full reverse
 
 Code is present, no `docs/` exists, the user picked sub-variant `c1`. The procedure:
@@ -163,7 +190,8 @@ code only, user picks c1 (= existing-code-greenfield-docs) → full reverse + As
 code only, user picks c2                                  → temp files only
 code only, user picks c3                                  → no docs
 legacy docs detected                                      → BLOCK; offer migration → run on yes
-docs + code coherent                                      → steady state
+new format but a desired-state doc over budget            → BLOCK; offer decomposition → run on yes
+docs + code coherent AND all top-level docs within budget → steady state
 ```
 
 ## Enforcement
@@ -171,6 +199,7 @@ docs + code coherent                                      → steady state
 - The classification is mechanical — every bootstrap starts with the scan in § Classification.
 - The c-variant choice is **always asked, never defaulted**.
 - `legacy-docs` is a **hard block** — no other work can proceed until the user accepts migration.
+- `bloated-docs` is a **hard block** too — the compactness check (SKILL § hard rule 10) runs on every bootstrap scan, including on otherwise-steady-state repos; a top-level desired-state doc over the ≤ ~400-line budget reclassifies the repo to `bloated-docs` and blocks until the user accepts decomposition.
 - Bootstrap touches `docs/` and the temp folder only. Code changes belong to the iteration that follows.
 
 ## See also

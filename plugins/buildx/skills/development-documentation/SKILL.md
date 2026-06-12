@@ -34,6 +34,7 @@ The taxonomy is **technology-agnostic**. The same doc shapes apply to any stack.
 7. **One flow = one test.** Every `FL-NNN-*.md` carries a `## Test` block with the fully-qualified name of exactly one real test (HTTP / UI / gRPC / CLI / etc.). If a single route validates UI + API together, it is one flow and one Playwright end-to-end test. If they are tested separately, they are two flows.
 8. **Operational docs are ephemeral.** `todo.md` is rewritten per iteration. `backlog.md` / `bugs.md` items are deleted on close — the trace survives via commits, not via "closed items" sections. No `docs/archive/`. No compaction policy. No threshold checks.
 9. **Handback discipline names which docs were touched per delivery** — owned by the per-stack conventions skill (e.g. `dotnet-conventions` § build-quality/handback-format for .NET).
+10. **Compactness invariant — each desired-state doc is a lean index, not an encyclopedia.** The top-level docs (`REQUIREMENT.md`, `GLOSSARY.md`, `DATA-MODEL.md`, `SOLUTION.md`) carry only their own concern and **delegate all detail downward** to the hierarchical auxiliaries: per-feature prose lives in `features/FT-*/feature.md`, per-flow prose in `flows/FL-*.md`, and any deep-dive a SOLUTION section needs lives in a referenced sub-doc — never inlined upward. **Budget: ≤ ~400 lines per desired-state file.** A file over budget is a tripwire that lower-level detail has leaked up; it MUST be decomposed into its auxiliaries. **Decomposition is mandatory, not optional** — a repo carrying a bloated desired-state doc is treated exactly like the legacy monolithic format: bootstrap routes it to a hard-blocking decompose pass (see [bootstrap.md](bootstrap.md) § Variant `bloated-docs`) before any other work proceeds. Reader cost matters: every agent that plans, reviews, or reconciles re-reads these docs on each dispatch, so bloat is paid on every cycle.
 
 ## Master table — canonical docs
 
@@ -71,8 +72,9 @@ Before saving REQUIREMENT.md, any `feature.md`, any `FL-NNN-*.md`, or SOLUTION.m
 - [ ] Mermaid diagrams render in standard viewers; deprecated nodes have been removed, not greyed out.
 - [ ] Cross-references resolve: every cited `FR-NNN` / `FT-NNN` / `FL-NNN` exists in the named owning doc.
 - [ ] No claim of work-in-progress, blockers, or task status — those live in the operational queue.
+- [ ] Compact — the doc carries only its own concern, delegates detail to its auxiliaries, and is within the ≤ ~400-line budget (hard rule 10). Detail that belongs in a `feature.md` / `FL-*.md` / referenced sub-doc has not leaked up.
 
-If any box fails, the doc is in debt. Fix it in the same pass before continuing.
+If any box fails, the doc is in debt. Fix it in the same pass before continuing. If the compactness box fails, the fix is decomposition into the auxiliaries per [bootstrap.md](bootstrap.md) § Variant `bloated-docs`, not a trim-in-place that drops information.
 
 ## See also
 
