@@ -38,6 +38,7 @@ The taxonomy is **technology-agnostic**. The same doc shapes apply to any stack.
 9. **Handback discipline names which docs were touched per delivery** — owned by the per-stack conventions skill (e.g. `dotnet-conventions` § build-quality/handback-format for .NET).
 10. **Compactness invariant — each desired-state doc is a lean index, not an encyclopedia.** The top-level docs (`REQUIREMENT.md`, `GLOSSARY.md`, `DATA-MODEL.md`, `SOLUTION.md`) carry only their own concern and **delegate all detail downward** to the hierarchical auxiliaries: per-feature prose lives in `features/FT-*/feature.md`, per-flow prose in `flows/FL-*.md`, and any deep-dive a SOLUTION section needs lives in a referenced sub-doc — never inlined upward. **Budget: ≤ ~400 lines per desired-state file.** A file over budget is a tripwire that lower-level detail has leaked up; it MUST be decomposed into its auxiliaries. **Decomposition is mandatory, not optional** — a repo carrying a bloated desired-state doc is treated exactly like the legacy monolithic format: bootstrap routes it to a hard-blocking decompose pass (see [bootstrap.md](bootstrap.md) § Variant `bloated-docs`) before any other work proceeds. Reader cost matters: every agent that plans, reviews, or reconciles re-reads these docs on each dispatch, so bloat is paid on every cycle.
 11. **Data flows are the implementation contract.** Every `FL-NNN` that requires implementation carries 1..N `DF-NNN` files (architect-owned) before the developer is dispatched; the developer brief names the `DF-NNN`(s) to implement or correct; the code must map step-by-step to the data flow (and vice versa — enforced by the reviewer rule `code-maps-to-dataflow`). Data flows name infrastructure specifically but never prescribe programming style. See [data-flow.md](data-flow.md).
+12. **Remote externalization is optional and provider-agnostic.** A project MAY externalize its desired state + change/bug tracking to a remote work-item provider (Azure DevOps first), while the local copy stays the working source of record. When it does, `docs/REMOTE-SYNC.md` is the git-tracked **integration ledger** (provider, `connected` flag, internal-ID ↔ remote-id mapping). It is the **one** git-tracked file under `docs/` that is **exempt from the desired-state invariant** — it legitimately carries live remote ids and last-synced state. Synchronization is **user-triggered** via the `pull-desired-state` / `push-desired-state` commands, never automatic, and **fails clearly when no remote is connected**. See [remote-sync.md](remote-sync.md).
 
 ## Master table — canonical docs
 
@@ -57,6 +58,8 @@ The taxonomy is **technology-agnostic**. The same doc shapes apply to any stack.
 
 The "owner" column names a *role*. Where a deployed agent exists for a role, it owns the file; otherwise the human or an orchestrator-style agent stewards the file.
 
+**Optional integration ledger.** When a project externalizes its desired state to a remote provider (hard rule 12), it also carries `docs/REMOTE-SYNC.md` — owner: orchestrator; lifecycle: machine-maintained ledger (provider + connection + internal-ID ↔ remote-id mapping), refreshed by the sync commands, **not** a desired-state doc. Present only when connected. See [remote-sync.md](remote-sync.md).
+
 ## Cross-cutting leaves
 
 | Leaf | Purpose |
@@ -64,6 +67,7 @@ The "owner" column names a *role*. Where a deployed agent exists for a role, it 
 | [bootstrap.md](bootstrap.md) | Entry-point procedure: classify the working directory (empty / docs-only / code-only / legacy-docs) and run the matching playbook (variants `a`, `b`, `c1`, `c2`, `c3`, `legacy-docs`, `existing-code-greenfield-docs`). |
 | [folder-layout.md](folder-layout.md) | The `docs/` tree shape, the temp folder shape, what is git-tracked vs not. |
 | [id-taxonomy.md](id-taxonomy.md) | Every ID prefix (`FR`, `NFR`, `FT`, `FL`, `T`, `BL`, `BG`), where it lives, how it crosses documents. |
+| [remote-sync.md](remote-sync.md) | Optional externalization of desired state to a remote work-item provider (ADO first): the `REMOTE-SYNC.md` ledger, the mapping, hierarchy reconciliation, the always-ask conflict rule, the `pull-`/`push-desired-state` commands. |
 
 ## Desired-state invariant (apply on every state-doc write)
 
@@ -80,8 +84,12 @@ Before saving REQUIREMENT.md, any `feature.md`, any `FL-NNN-*.md`, any `DF-NNN-*
 
 If any box fails, the doc is in debt. Fix it in the same pass before continuing. If the compactness box fails, the fix is decomposition into the auxiliaries per [bootstrap.md](bootstrap.md) § Variant `bloated-docs`, not a trim-in-place that drops information.
 
+`docs/REMOTE-SYNC.md` is **not** a state doc and is **excluded** from this checklist — it is the integration ledger (hard rule 12) and legitimately carries live remote ids and last-synced state. See [remote-sync.md](remote-sync.md).
+
 ## See also
 
+- Slash skills: `docs-upgrade` (conform / complete an existing docs set — legacy migration, decomposition, gap audit) and `docs-reverse` (reverse-engineer the canonical set from code; optional path argument for stack-migration scenarios).
+- Slash skills: `pull-desired-state` / `push-desired-state` (synchronize the desired state against a connected remote work-item provider — see [remote-sync.md](remote-sync.md)).
 - Per-stack conventions skill — handback contract that names which docs were touched per delivery (e.g. `dotnet-conventions` § build-quality/handback-format for .NET).
 - Per-stack test-designer skill — the role that fills the `## Test` FQN inside each `FL-NNN-*.md` (e.g. agent `dotnet-test-designer` for .NET).
 - Stack-specific skills own concrete code catalogs (inspector codes, test-runner failure buckets, source-module names) — load the matching skill alongside this one when working on a typed stack.

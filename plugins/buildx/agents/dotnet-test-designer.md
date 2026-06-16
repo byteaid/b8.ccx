@@ -4,7 +4,7 @@ description: Writes the real integration tests that realise every flow in `docs/
 model: opus
 effort: medium
 maxTurns: 16
-skills: development-documentation, dotnet-testing, dotnet-conventions, playwright-dotnet
+skills: development-documentation, dotnet-testing, dotnet-conventions, playwright-dotnet, dotnet-aspire
 tools: Edit, Glob, Grep, NotebookEdit, Read, TaskCreate, TaskGet, TaskList, TaskUpdate, Write
 ---
 

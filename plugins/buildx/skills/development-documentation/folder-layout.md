@@ -15,6 +15,7 @@ Every project the team manages keeps its documentation in two predictable locati
 │   ├── GLOSSARY.md                          # domain vocabulary
 │   ├── DATA-MODEL.md                        # entities + relationships
 │   ├── SOLUTION.md                          # infrastructure + apps + comms
+│   ├── REMOTE-SYNC.md                       # OPTIONAL integration ledger (only when remote-sync is enabled)
 │   └── features/
 │       ├── FT-001-{kebab-feature-name}/
 │       │   ├── feature.md                   # feature description, FR cross-links (analyst)
@@ -40,6 +41,7 @@ Every project the team manages keeps its documentation in two predictable locati
 - **One canonical doc per concept.** No `REQUIREMENT_v2.md`, no `BUGS-OLD.md`. Supersession is in-place rewrite.
 - **No `docs/archive/`.** The desired-state is the present state; the historical archive is `git log`.
 - **No PROGRESS, no CHANGELOG, no ASSESSMENT, no CODE_INSPECTION, no ARCHITECTURE.** These were retired in v0.4.0 of this skill — their content has been folded into the new structure (ARCHITECTURE → SOLUTION) or deleted (PROGRESS, CHANGELOG, ASSESSMENT, CODE_INSPECTION → git log).
+- **`REMOTE-SYNC.md` is optional and git-tracked.** It exists only when the project externalizes its desired state to a remote work-item provider (SKILL § hard rule 12). It is the single git-tracked **integration ledger** — NOT a desired-state doc, NOT subject to the no-history / no-status rule, and machine-maintained by the `pull-`/`push-desired-state` commands. See [remote-sync.md](remote-sync.md).
 
 ### 2. `${OS_TEMP}/aix-todo/{repo-basename}/` — operational queue, NOT git-tracked
 

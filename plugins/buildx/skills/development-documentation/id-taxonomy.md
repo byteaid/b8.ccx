@@ -62,6 +62,20 @@ A reference uses the full prefix and is read as a hyperlink even when it isn't o
 - **Never invent an ID retroactively.** If a cited ID doesn't exist, fix the upstream document first — do not paper over with a fake number.
 - **A "title" line is not optional.** `FR-007. {title}` reads at a glance; bare `FR-007` followed by prose is harder to scan.
 
+## External mapping
+
+When a project externalizes its desired state to a remote work-item provider (SKILL § hard rule 12), the internal IDs stay **canonical and local** — they are never renamed to match the remote. The correspondence to the provider's work-item types, and the live remote ids, live **only** in the `docs/REMOTE-SYNC.md` ledger, keyed by a correlation tag (`bx:<ID>`, e.g. `bx:FT-001`). The Azure DevOps (Agile) correspondence is:
+
+| Internal | ADO type | Note |
+|---|---|---|
+| `FT-NNN` | Feature | — |
+| `FL-NNN` | User Story | parented under its feature's Feature |
+| `BG-NNN` | Bug | parented under the Feature owning its affected `FL-NNN` |
+| `BL-NNN` | Issue | a requested change; `Related`-linked to the Feature(s) it spawns |
+| `T-NNN` / `DT-NNN` | — | not synced |
+
+See [remote-sync.md](remote-sync.md) for the ledger, mapping, hierarchy, and conflict rules.
+
 ## Enforcement
 
 - The handback report (owned by the per-stack conventions skill — e.g. `dotnet-conventions` § build-quality/handback-format for .NET) lists which IDs were touched per delivery. Reviewers grep the cited IDs back to the docs to confirm they resolve.

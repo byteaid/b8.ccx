@@ -20,6 +20,7 @@ Walk the repo root and decide which variant applies:
 | Code present AND new-format `docs/` present, coherent, AND every top-level desired-state doc is within the compactness budget | steady state — skip bootstrap          |
 
 Edge cases:
+- `docs/REMOTE-SYNC.md` is the **optional integration ledger** (SKILL § hard rule 12), not a state doc and not debris — **ignore it during classification**. It never triggers `legacy-docs` or `bloated-docs`, and its absence is normal (most repos are not externalized). Bootstrap seeds it **only** when the user opts into externalization; otherwise it does not exist. See [remote-sync.md](remote-sync.md).
 - `docs/` partial AND code partial → treat as **c**; the existing partial docs feed the reverse-engineering pass but do not exempt the project from the sub-variant choice.
 - Multi-module repo with code in some modules and not others → still one bootstrap, one `docs/` at the repo root.
 - If BOTH old-format docs AND new-format `docs/features/` are present, treat as **legacy-docs**: the project is mid-migration and must be reconciled before any other work.
@@ -79,7 +80,7 @@ Wait for the user's choice. Do not pre-select.
 
 ### Sub-variant c1 — full reverse-engineered docs
 
-Equivalent to the **`existing-code-greenfield-docs`** flow described below. See that section for the full procedure.
+Equivalent to the **`existing-code-greenfield-docs`** flow described below. See that section for the full procedure. The user can also trigger this derivation directly (docs-only, migration-aware) via the user-invocable `docs-reverse` skill.
 
 ### Sub-variant c2 — minimal docs
 
@@ -111,7 +112,7 @@ The orchestrator MUST refuse to process any `BL-NNN` / `BG-NNN` / user request u
 > - **yes** — I will run the migration now and proceed.
 > - **no** — I will stop. The repo stays in the legacy format and I will not process this request.
 
-Wait for explicit `yes`. Do not default.
+Wait for explicit `yes`. Do not default. (When the user themselves invoked the `docs-upgrade` skill, that invocation IS the explicit yes — proceed without re-asking.)
 
 ### Migration playbook (executed by `analyst` in `migrate` mode)
 

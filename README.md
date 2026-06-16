@@ -6,7 +6,7 @@ A personal Claude Code marketplace. Each plugin is a self-contained directory un
 
 | Plugin | Description |
 |---|---|
-| [`buildx`](./plugins/buildx) | Orchestrator agent for end-to-end software delivery: `buildx` + the `analyst` / `dotnet-architect` / `dotnet-developer` / `dotnet-test-designer` / `dotnet-reviewer` specialists, the `development-documentation` skill, and a .NET / ASP.NET Core / Playwright knowledge bundle (~30 skills). |
+| [`buildx`](./plugins/buildx) | Orchestrator agent for end-to-end software delivery: `buildx` + the `analyst` / `dotnet-architect` / `dotnet-developer` / `dotnet-test-designer` / `dotnet-reviewer` specialists, the `development-documentation` skill, and a .NET / ASP.NET Core / Playwright knowledge bundle (~42 skills). |
 
 ## Installing
 
@@ -65,7 +65,7 @@ When a new commit lands on the default branch:
 │       ├── .claude-plugin/
 │       │   └── plugin.json       # plugin manifest
 │       ├── agents/               # 5 agents
-│       └── skills/               # ~37 skills (each is a folder with SKILL.md)
+│       └── skills/               # ~42 skills (each is a folder with SKILL.md)
 └── README.md
 ```
 
