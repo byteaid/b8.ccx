@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "azx",
   "displayName": "azx",
-  "description": "Azure skills bundle: azure-pricing-api (dated cost quotes via the Azure Retail Prices API), byteaid-assets-icons (official service icons in mermaid/Typst diagrams), and generate-azure-solution-proposal (deterministic 9-section solution proposal, Typst → PDF, themeable via style guide).",
+  "description": "Azure skills bundle: azure-pricing-api (dated cost quotes via the Azure Retail Prices API), byteaid-assets-icons (resolve/verify/download official service icons), azure-diagrams (author mermaid/Typst architecture diagrams from those icons), and generate-azure-solution-proposal (deterministic 9-section solution proposal, Typst → PDF, themeable via style guide).",
   "author": {
     "name": "a3.diaz",
     "email": "a3.diaz@outlook.com"

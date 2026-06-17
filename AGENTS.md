@@ -1,7 +1,7 @@
 # ccx — Claude Code Plugin Marketplace
 
-**Version:** v1.6.0
-**Updated:** 2026-06-15
+**Version:** v1.7.0
+**Updated:** 2026-06-17
 
 Personal Claude Code marketplace. Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json`; the top-level `.claude-plugin/marketplace.json` is the catalog users add to their Claude Code install. Targets **Claude Code only** — no cross-provider deploy, no research substrate, no per-customer scoping.
 
@@ -185,12 +185,13 @@ Spec lives in `plugins/buildx/agents/buildx.md`. Subagent dispatch contract is d
 
 ## Plugin: `azx`
 
-Azure skills bundle — **skills only, no agents**: two knowledge skills (pricing, icons) plus one procedure skill (proposal generation) that composes them.
+Azure skills bundle — **skills only, no agents**: three reusable base skills (pricing, icons, diagrams) plus one procedure skill (proposal generation) that composes them. The base skills are layered: `azure-diagrams` consumes `byteaid-assets-icons`; the proposal consumes all three.
 
 - **Skills** (`plugins/azx/skills/`):
   - `azure-pricing-api` — Azure Retail Prices API (`https://prices.azure.com/api/retail/prices`) reference: filters, pagination, Consumption / Reservation / savings-plan rates, and the quote workflow with its pitfall catalog.
-  - `byteaid-assets-icons` — ByteAid Assets icons API (`https://assets.byteaid.io/api/icons/*`): icon-slug resolution (fuzzy search, never-empty pitfall) and embedding recipes for mermaid (img-in-label) and Typst (download-then-`#image`, icon-is-the-node).
-  - `generate-azure-solution-proposal` — deterministic procedure for a 9-section Azure solution proposal (Resumen ejecutivo → Fuera de alcance), Typst → PDF; consumes the two skills above; optional style guide themes appearance via a fixed `theme` dict without altering anatomy.
+  - `byteaid-assets-icons` — ByteAid Assets icons API (`https://assets.byteaid.io/api/icons/*`): icon-slug **resolution** (fuzzy search, never-empty pitfall), URL **verification**, and **download** to a local SVG. Pure icon-obtention base — embedding into a diagram is `azure-diagrams`'s job.
+  - `azure-diagrams` — author architecture/topology diagrams that carry the resolved icons, in two render targets: mermaid (img-in-label) and Typst/`fletcher` (download-then-`#image`, icon-is-the-node). Target-agnostic rules + per-target recipes and caveats (incl. GitHub stripping external imgs). Consumes `byteaid-assets-icons`; reused by the proposal and available standalone.
+  - `generate-azure-solution-proposal` — deterministic procedure for a 9-section Azure solution proposal (Resumen ejecutivo → Fuera de alcance), Typst → PDF; consumes the three base skills above (pricing for cost, icons for resolution/download, diagrams for the Arquitectura diagram); optional style guide themes appearance via a fixed `theme` dict without altering anatomy.
 
 ## Distribution & Updates
 

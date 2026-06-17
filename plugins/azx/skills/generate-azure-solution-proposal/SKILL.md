@@ -1,10 +1,10 @@
 ---
 name: generate-azure-solution-proposal
-description: Deterministic procedure to produce an Azure solution proposal document (Typst → PDF) with a fixed 9-section anatomy — Resumen ejecutivo, Antecedentes, Propuesta de solución, Arquitectura (icon diagram + resource-role table), Costo de infraestructura (live dated prices), Esfuerzo (hours by task, no dates), Cronograma (dated schedule + milestones), Pre requisitos y supuestos, Fuera de alcance. Consumes `azure-pricing-api` for every cost figure and `byteaid-assets-icons` for every diagram icon. White-label by default — the deliverable carries zero brand or tooling references; an optional `.styles/` directory supplies ALL branding (logo, company, palette) and themes the resulting Typst without altering structure. Same inputs → same document structure, file layout, and section anatomy on every run.
+description: Deterministic procedure to produce an Azure solution proposal document (Typst → PDF) with a fixed 9-section anatomy — Resumen ejecutivo, Antecedentes, Propuesta de solución, Arquitectura (icon diagram + resource-role table), Costo de infraestructura (live dated prices), Esfuerzo (hours by task, no dates), Cronograma (dated schedule + milestones), Pre requisitos y supuestos, Fuera de alcance. Consumes `azure-pricing-api` for every cost figure, `byteaid-assets-icons` for every diagram icon (resolution + download), and `azure-diagrams` for authoring the Arquitectura diagram itself. White-label by default — the deliverable carries zero brand or tooling references; an optional `.styles/` directory supplies ALL branding (logo, company, palette) and themes the resulting Typst without altering structure. Same inputs → same document structure, file layout, and section anatomy on every run.
 when_to_use: |
   - User asks for an Azure solution proposal, project proposal, client proposal, cotización de proyecto, propuesta de solución/implementación, or a pre-sales document combining architecture + cost + effort + schedule.
   - User asks to regenerate or restyle an existing proposal (style guide change, scope change, re-price).
-  - NOT for a standalone quote (use `azure-pricing-api` § quoting-recipes directly) or a standalone diagram (use `byteaid-assets-icons`).
+  - NOT for a standalone quote (use `azure-pricing-api` § quoting-recipes directly) or a standalone diagram (use `azure-diagrams`).
 allowed-tools: Bash, PowerShell, Glob, Grep, Read, Write, Edit, WebFetch
 user-invocable: false
 ---
@@ -35,7 +35,7 @@ Ask the user ONCE for every missing item; blocking items stop the pipeline until
 1. **Collect inputs** per the table above. Do not start step 2 with blocking items open.
 2. **Design the solution.** Map workload components to Azure services / SKUs / tiers / regions. Record every billable component in a component inventory (one line: service, SKU, region, monthly quantity assumption) — this inventory is the single source for BOTH the Arquitectura table and the Costo table; never derive them independently.
 3. **Price.** For each inventory line, follow `azure-pricing-api` end to end (discovery → exact filters → full pagination → `Consumption` base + labeled commitment alternatives → record `meterId` + retrieval date). One currency, one retrieval date for the whole document.
-4. **Resolve icons.** For each distinct service in the inventory, resolve + verify its slug per `byteaid-assets-icons` and download to `{output-dir}/.assets/icons/{slug}.svg` — every downloaded resource lands under `.assets/`, never at the root. One slug per service for the whole document.
+4. **Resolve icons.** For each distinct service in the inventory, resolve + verify its slug per `byteaid-assets-icons` and download to `{output-dir}/.assets/icons/{slug}.svg` — every downloaded resource lands under `.assets/`, never at the root. One slug per service for the whole document. (The diagram that consumes these icons is authored per `azure-diagrams` in step 8.)
 5. **Estimate effort.** Decompose delivery into tasks `T01..Tnn` (stable zero-padded ids, dependency order), hours per task, summed total. No dates in this section.
 6. **Derive the cronograma** from the effort table — never invent it independently: assign tasks in id order at team capacity (default 8 h/day), business days only (Mon–Fri), starting at the start date; a task longer than a day spans consecutive days; milestones (hitos) close each task group. Total scheduled hours MUST equal the Esfuerzo total.
 7. **Author content** for the nine sections per [sections.md](sections.md) — exact titles, exact order, per-section content contracts.
@@ -48,7 +48,7 @@ Ask the user ONCE for every missing item; blocking items stop the pipeline until
 1. Nine sections, exact canonical titles, exact order — none added, none removed. A section with nothing to say carries a single line `— No aplica: {reason}`, never silently dropped.
 2. Every cost row traces to a `meterId` retrieved this session; header carries currency + retrieval date; total re-added by hand.
 3. Arquitectura table rows ↔ Costo components ↔ diagram nodes are the same inventory (gate 2 of step 2).
-4. Every diagram node for an Azure service has its verified icon, embedded directly (no enclosing shapes — `byteaid-assets-icons` § embedding).
+4. Every diagram node for an Azure service has its verified icon, embedded directly (no enclosing shapes — `azure-diagrams`).
 5. Cronograma total hours == Esfuerzo total hours; all dates are business days ≥ start date.
 6. Style guide affected colors/fonts/logo/footer only — diff against defaults must show zero structural change.
 7. Output layout exactly: `{output-dir}/main.typ`, `{output-dir}/.assets/icons/*.svg`, `{output-dir}/proposal.pdf` (+ `{output-dir}/.styles/` when provided). Downloaded resources only under `.assets/`; branding only under `.styles/`.
@@ -66,4 +66,5 @@ Default Spanish with the canonical section titles in [sections.md](sections.md).
 | The nine section contracts (canonical titles + per-section content rules) | [sections.md](sections.md) |
 | Typst scaffold, theme/style-guide contract, compile + visual verification | [typst-scaffold.md](typst-scaffold.md) |
 | Pricing mechanics (filters, pagination, pitfalls, quote table) | `azure-pricing-api` |
-| Icon resolution + embedding (Typst and markdown/mermaid) | `byteaid-assets-icons` |
+| Icon resolution + verification + download | `byteaid-assets-icons` |
+| Architecture-diagram authoring (Typst fletcher + mermaid, icon-is-the-node) | `azure-diagrams` |

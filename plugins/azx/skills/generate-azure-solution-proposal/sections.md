@@ -36,7 +36,7 @@ The proposed solution as a GENERAL description — the resource-by-resource deta
 High-level architecture/infrastructure diagram + resource-role table.
 
 - Shape: (a) the diagram, (b) the table — both mandatory.
-- Diagram: Typst `fletcher` per `byteaid-assets-icons` § embedding — every Azure node carries its verified icon directly (no enclosing boxes), groupings (regions/zones) as dashed enclosures, edges labeled protocol/port, neutral caption describing the topology (no tooling or provider credits — whitelabel invariant, [typst-scaffold.md](typst-scaffold.md)).
+- Diagram: Typst `fletcher` per `azure-diagrams` — every Azure node carries its verified icon directly (no enclosing boxes), groupings (regions/zones) as dashed enclosures, edges labeled protocol/port, neutral caption describing the topology (no tooling or provider credits — whitelabel invariant, [typst-scaffold.md](typst-scaffold.md)). Icons are resolved + downloaded per `byteaid-assets-icons` (step 4).
 - Table — one row per resource in the component inventory (same inventory as § 5):
 
 | Columns | Recurso (icon + name) | SKU / tier | Región | Rol en el diseño |
