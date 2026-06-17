@@ -101,10 +101,11 @@ Merge rule: known key → override; unknown key → ignore and tell the user; mi
 {per sections.md § 3}
 
 = Arquitectura
+// fletcher conventions (icon-is-the-node, enclose groupings, edge labels, traps) per `azure-diagrams`
 #figure(
   diagram(
     spacing: (14mm, 9mm),
-    node-stroke: none,          // icons stand directly — byteaid-assets-icons rule
+    node-stroke: none,          // icons stand directly — azure-diagrams rule (icon IS the node)
     node-fill: none,
     edge-stroke: 0.6pt + theme.accent.darken(20%),
     label-size: 6.5pt,
