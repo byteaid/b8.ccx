@@ -1,6 +1,6 @@
 # ccx — Claude Code Plugin Marketplace
 
-**Version:** v1.8.0
+**Version:** v1.9.0
 **Updated:** 2026-07-22
 
 Personal Claude Code marketplace. Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json`; the top-level `.claude-plugin/marketplace.json` is the catalog users add to their Claude Code install. Targets **Claude Code only** — no cross-provider deploy, no research substrate, no per-customer scoping.
@@ -185,13 +185,14 @@ Spec lives in `plugins/buildx/agents/buildx.md`. Subagent dispatch contract is d
 
 ## Plugin: `azx`
 
-Azure skills bundle — **skills only, no agents**: three reusable base skills (pricing, icons, diagrams) plus one procedure skill (proposal generation) that composes them. The base skills are layered: `azure-diagrams` consumes `byteaid-assets-icons`; the proposal consumes all three.
+Azure skills bundle — **skills only, no agents**: three reusable base skills (pricing, icons, diagrams) plus two deliverable skills (proposal generation, usage report). The base skills are layered: `azure-diagrams` consumes `byteaid-assets-icons`; the proposal consumes all three.
 
 - **Skills** (`plugins/azx/skills/`):
   - `azure-pricing-api` — Azure Retail Prices API (`https://prices.azure.com/api/retail/prices`) reference: filters, pagination, Consumption / Reservation / savings-plan rates, and the quote workflow with its pitfall catalog.
   - `byteaid-assets-icons` — ByteAid Assets icons API (`https://assets.byteaid.io/api/icons/*`): icon-slug **resolution** (fuzzy search, never-empty pitfall), URL **verification**, and **download** to a local SVG. Pure icon-obtention base — embedding into a diagram is `azure-diagrams`'s job.
   - `azure-diagrams` — author architecture/topology diagrams that carry the resolved icons, in two render targets: mermaid (img-in-label) and Typst/`fletcher` (download-then-`#image`, icon-is-the-node). Target-agnostic rules + per-target recipes and caveats (incl. GitHub stripping external imgs). Consumes `byteaid-assets-icons`; reused by the proposal and available standalone.
   - `generate-azure-solution-proposal` — deterministic procedure for a 9-section Azure solution proposal (Resumen ejecutivo → Fuera de alcance), Typst → PDF; consumes the three base skills above (pricing for cost, icons for resolution/download, diagrams for the Arquitectura diagram); optional style guide themes appearance via a fixed `theme` dict without altering anatomy.
+  - `generate-azure-usage-report` — compact monthly "reporte light" of how a subscription used Azure over the last 3 months (last month as protagonist): executive summary for leadership, consolidated costs (spend trend, zombie/oversized + unused resources), security posture (Defender + the WAF sub-report: attacks, false-positive candidates), reliability (backup coverage per family — VMs, SQL PITR/LTR, Cosmos, storage soft delete, App Service Backup), availability (TLS certificates incl. App Gateway listeners resolved against Key Vault, availability zones, regional redundancy), performance (saturation + scaling rules), and operational hygiene (naming, tagging, fragmentation) — every finding environment-weighted (Prod vs Dev/Test) and each section with Advisor-grounded recommendations. 10-stage pipeline of .NET 10 file-based C# scripts (`scripts/` with paired `.md` contracts) + one agent-authored Spanish narrative (frozen prompt) + Typst → PDF render. NOT the deep Well-Architected Framework assessment (that pipeline lives outside this marketplace). Note: the acquisition/aggregation/render scripts intentionally exceed the ~300-line script cap — they are a fixed pipeline toolchain, documented per script, and re-run rather than edited during report generation.
 
 ## Distribution & Updates
 

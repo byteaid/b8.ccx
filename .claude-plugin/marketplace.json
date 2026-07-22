@@ -14,7 +14,7 @@
     {
       "name": "azx",
       "source": "./plugins/azx",
-      "description": "Azure skills bundle: azure-pricing-api (dated cost quotes via the Azure Retail Prices API), byteaid-assets-icons (resolve/verify/download official service icons), azure-diagrams (author mermaid/Typst architecture diagrams from those icons), and generate-azure-solution-proposal (deterministic 9-section solution proposal, Typst → PDF, themeable via style guide)."
+      "description": "Azure skills bundle: azure-pricing-api (dated cost quotes via the Azure Retail Prices API), byteaid-assets-icons (resolve/verify/download official service icons), azure-diagrams (author mermaid/Typst architecture diagrams from those icons), generate-azure-solution-proposal (deterministic 9-section solution proposal, Typst → PDF, themeable via style guide), and generate-azure-usage-report (compact monthly usage report — sizing/unused, WAF status, security, resilience, operations — script pipeline + Spanish narrative, Typst → PDF)."
     }
   ]
 }
