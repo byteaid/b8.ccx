@@ -14,7 +14,12 @@
     {
       "name": "azx",
       "source": "./plugins/azx",
-      "description": "Azure skills bundle: azure-pricing-api (dated cost quotes via the Azure Retail Prices API), byteaid-assets-icons (resolve/verify/download official service icons), azure-diagrams (author mermaid/Typst architecture diagrams from those icons), generate-azure-solution-proposal (deterministic 9-section solution proposal, Typst → PDF, themeable via style guide), and generate-azure-usage-report (compact monthly usage report — sizing/unused, WAF status, security, resilience, operations — script pipeline + Spanish narrative, Typst → PDF)."
+      "description": "Azure skills bundle: azure-pricing-api (dated cost quotes via the Azure Retail Prices API), byteaid-assets-icons (resolve/verify/download official service icons), azure-diagrams (Azure composition layer — icon discipline + render-target selection over mermaid / dgx typst-diagrams / dgx vsdx-diagrams), generate-azure-solution-proposal (deterministic 9-section solution proposal, Typst → PDF, themeable via style guide), and generate-azure-usage-report (compact monthly usage report — sizing/unused, WAF status, security, resilience, operations — script pipeline + Spanish narrative, Typst → PDF)."
+    },
+    {
+      "name": "dgx",
+      "source": "./plugins/dgx",
+      "description": "Diagram authoring/export bundle (provider-agnostic): typst-diagrams (Typst/fletcher node-edge diagrams with local image embedding) and vsdx-diagrams (JSON diagram spec → native Visio .vsdx via a bundled .NET 10 script — shapes, glued connectors, group enclosures, no Visio required)."
     }
   ]
 }
