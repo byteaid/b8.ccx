@@ -15,14 +15,16 @@ XNamespace CT = "http://schemas.openxmlformats.org/package/2006/content-types";
 XNamespace PR = "http://schemas.openxmlformats.org/package/2006/relationships";
 
 string? input = null, output = null;
+int ppi = 192;
 for (int i = 0; i < args.Length; i++)
     switch (args[i])
     {
         case "--input" when i + 1 < args.Length: input = args[++i]; break;
         case "--output" when i + 1 < args.Length: output = args[++i]; break;
-        default: return Fail(1, $"unknown arg '{args[i]}' — usage: json-to-vsdx.cs --input spec.json --output diagram.vsdx");
+        case "--ppi" when i + 1 < args.Length && int.TryParse(args[i + 1], out ppi): i++; break;
+        default: return Fail(1, $"unknown arg '{args[i]}' — usage: json-to-vsdx.cs --input spec.json --output diagram.vsdx [--ppi 192]");
     }
-if (input is null || output is null) return Fail(1, "usage: json-to-vsdx.cs --input spec.json --output diagram.vsdx");
+if (input is null || output is null) return Fail(1, "usage: json-to-vsdx.cs --input spec.json --output diagram.vsdx [--ppi 192]");
 if (!File.Exists(input)) return Fail(1, $"input not found: {input}");
 
 Spec spec;
@@ -55,11 +57,40 @@ foreach (var n in nodes)
 {
     if (n.Shape is not (null or "rectangle" or "rounded" or "ellipse")) errors.Add($"node '{n.Id}': unknown shape '{n.Shape}' (rectangle|rounded|ellipse)");
     if (n.Image is null) continue;
-    if (Ext(n.Image) == "svg") errors.Add($"node '{n.Id}': SVG cannot be embedded in VSDX (Visio vectorizes it, the file format only carries raster ForeignData) — rasterize to PNG first and reference the PNG");
-    else if (!imgTypes.ContainsKey(Ext(n.Image))) errors.Add($"node '{n.Id}': unsupported image type '.{Ext(n.Image)}' (png|jpg|jpeg|gif)");
+    if (Ext(n.Image) is not ("svg" or "png" or "jpg" or "jpeg" or "gif")) errors.Add($"node '{n.Id}': unsupported image type '.{Ext(n.Image)}' (svg|png|jpg|jpeg|gif)");
     else if (!File.Exists(n.Image)) errors.Add($"node '{n.Id}': image not found: {n.Image}");
 }
 if (errors.Count > 0) return Fail(2, string.Join("\n", errors));
+
+// ---- rasterize SVG references via typst (the VSDX format only carries raster ForeignData) ----
+var rasterized = new Dictionary<string, string>();                        // svg full path -> rasterized png path
+var svgSources = nodes.Where(n => n.Image is not null && Ext(n.Image!) == "svg")
+                      .Select(n => Path.GetFullPath(n.Image!)).Distinct().ToList();
+string? tmpDir = null;
+if (svgSources.Count > 0)
+{
+    tmpDir = Directory.CreateTempSubdirectory("json-to-vsdx-").FullName;
+    for (int i = 0; i < svgSources.Count; i++)
+    {
+        string svg = svgSources[i], typ = Path.Combine(tmpDir, $"img{i}.typ"), png = Path.Combine(tmpDir, $"img{i}.png");
+        File.Copy(svg, Path.Combine(tmpDir, $"img{i}.svg"), true);
+        File.WriteAllText(typ, $"#set page(width: auto, height: auto, margin: 0pt)\n#image(\"img{i}.svg\", width: 96pt)");
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("typst", $"compile \"{typ}\" \"{png}\" --ppi {ppi}")
+                { RedirectStandardError = true, UseShellExecute = false };
+            using var p = System.Diagnostics.Process.Start(psi)!;
+            string stderr = p.StandardError.ReadToEnd();
+            p.WaitForExit();
+            if (p.ExitCode != 0) return Fail(2, $"typst failed rasterizing {svg}: {stderr.Trim()}");
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return Fail(2, $"'{svg}' is SVG — auto-rasterizing needs the typst CLI on PATH (install typst, or pre-rasterize to PNG and reference that)");
+        }
+        rasterized[svg] = png;
+    }
+}
 
 // ---- layout (auto when any node lacks x/y): layered left-to-right by longest path from sources ----
 const double DefW = 1.6, DefH = 1.0, DefIcon = 0.6, LabelZone = 0.3, HGap = 1.1, VGap = 0.55, Margin = 0.75;
@@ -147,7 +178,7 @@ var shapeId = new Dictionary<string, int>();
 int nextId = 1;
 var shapes = new List<XElement>();
 var connects = new List<XElement>();
-var media = new Dictionary<string, (int Index, string Ext)>();            // full path -> media part (deduped)
+var media = new Dictionary<string, (int Index, string Ext, string Src)>(); // original full path -> media part (deduped)
 
 foreach (var g in groups)                                               // groups first = behind (z-order is document order)
 {
@@ -167,7 +198,10 @@ foreach (var n in nodes)
     else
     {
         var full = Path.GetFullPath(n.Image);
-        if (!media.TryGetValue(full, out var m)) media[full] = m = (media.Count + 1, Ext(n.Image));
+        if (!media.TryGetValue(full, out var m))
+            media[full] = m = rasterized.TryGetValue(full, out var png)
+                ? (media.Count + 1, "png", png)
+                : (media.Count + 1, Ext(n.Image), full);
         shapes.Add(Pic(nextId++, p.X, p.Y, p.W, p.H, n.Label ?? n.Id, n.FontSize ?? 9, imgTypes[m.Ext].Compression, $"rId{m.Index}"));
     }
 }
@@ -276,14 +310,15 @@ using (var zip = ZipFile.Open(output, ZipArchiveMode.Create))
         doc.Save(s);
     }
 using (var zip = ZipFile.Open(output, ZipArchiveMode.Update))
-    foreach (var (path, m) in media)
+    foreach (var (_, m) in media)
     {
         var entry = zip.CreateEntry($"visio/media/image{m.Index}.{m.Ext}", CompressionLevel.Optimal);
         entry.LastWriteTime = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
         using var s = entry.Open();
-        using var f = File.OpenRead(path);
+        using var f = File.OpenRead(m.Src);
         f.CopyTo(s);
     }
+if (tmpDir is not null) try { Directory.Delete(tmpDir, true); } catch { /* best-effort cleanup */ }
 
 // ---- self-check: reopen and re-parse every XML part ----
 using (var zip = ZipFile.OpenRead(output))

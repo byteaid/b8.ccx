@@ -22,7 +22,7 @@ L2 leaf. Input contract of [scripts/json-to-vsdx.cs](scripts/json-to-vsdx.cs). P
       "fill": "#dae8fc",             // optional #RRGGBB — default white; ignored when image is set
       "line": "#404040",             // optional border color; ignored when image is set
       "fontSize": 10,                // optional pt — default 10 (9 for image nodes)
-      "image": "icons/service.png"   // optional — embeds the raster as the node (png|jpg|jpeg|gif)
+      "image": "icons/service.svg"   // optional — embeds the image as the node (svg|png|jpg|jpeg|gif)
     }
   ],
   "edges": [
@@ -56,10 +56,5 @@ L2 leaf. Input contract of [scripts/json-to-vsdx.cs](scripts/json-to-vsdx.cs). P
 
 - `image` embeds the file as a Visio Foreign object: **the image IS the node** — no border/fill drawn, label rendered BELOW the image. Default size `0.6 × 0.6` in; override with `w`/`h`.
 - Paths resolve relative to the process working directory — run the script from the spec's folder or use absolute paths.
-- **Raster only** (`png|jpg|jpeg|gif`). The VSDX format cannot carry SVG as an embedded picture (Visio vectorizes imported SVGs into native shapes) — the script rejects `.svg` with exit `2`. Rasterize first, e.g. with Typst:
-  ```
-  #set page(width: auto, height: auto, margin: 0pt)
-  #image("icon.svg", width: 96pt)
-  ```
-  then `typst compile icon.typ icon.png --ppi 144` and reference the PNG.
+- **SVG is accepted and auto-rasterized.** The VSDX format only carries raster ForeignData (Visio itself vectorizes imported SVGs), so the script rasterizes each referenced `.svg` through the `typst` CLI (default `--ppi 192`, override with the script arg) into a temp PNG and embeds that. Requires `typst` on PATH — exit `2` with an actionable message when missing (fallback: pre-rasterize yourself and reference the PNG).
 - The same file referenced by several nodes is embedded ONCE (deduplicated by full path).

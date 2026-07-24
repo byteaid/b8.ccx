@@ -15,6 +15,7 @@ dotnet run ${CLAUDE_SKILL_DIR}/scripts/json-to-vsdx.cs -- --input spec.json --ou
 |---|---|---|
 | `--input` | yes | Path to the JSON diagram spec ([../spec.md](../spec.md)). |
 | `--output` | yes | Path of the `.vsdx` to write. Overwritten if present. |
+| `--ppi` | no | Rasterization density for SVG node images (default `192`). |
 
 ## Exit codes
 
@@ -22,7 +23,7 @@ dotnet run ${CLAUDE_SKILL_DIR}/scripts/json-to-vsdx.cs -- --input spec.json --ou
 |---|---|
 | `0` | `.vsdx` written and self-checked (every XML part re-parsed). |
 | `1` | Usage / IO error, or self-check failed. |
-| `2` | Spec validation failed — no nodes, duplicate node ids, edge/group referencing an unknown node, unknown `shape`, missing/unsupported `image` (incl. `.svg` — rasterize first). All violations listed on stderr. |
+| `2` | Spec validation failed (no nodes, duplicate node ids, edge/group referencing an unknown node, unknown `shape`, missing/unsupported `image`) or SVG rasterization failed (`typst` missing from PATH / compile error). All violations listed on stderr. |
 
 ## Output
 
@@ -36,5 +37,5 @@ Determinism: same spec → byte-identical `.vsdx` (zip entry timestamps are fixe
 - Page size: explicit `pageWidth`/`pageHeight`, else computed to fit content + margin.
 - Connectors are 1-D shapes glued to source/target (`Connects` + `_WALKGLUE` formulas) — they survive moving shapes in Visio. Endpoints are pre-clipped at node borders so non-Visio viewers render them correctly too.
 - Groups render as dashed enclosures behind their member nodes (bounding box + inset, label top-centered).
-- Nodes with `image` embed the raster (`png|jpg|jpeg|gif`) as a Foreign object — image IS the node, label below, media parts deduplicated by full path. Image paths resolve against the working directory. SVG is rejected (exit `2`) — the format cannot carry it; rasterize first ([../spec.md](../spec.md) § Image nodes).
+- Nodes with `image` (`svg|png|jpg|jpeg|gif`) embed it as a Foreign object — image IS the node, label below, media parts deduplicated by full path. Image paths resolve against the working directory. SVGs are auto-rasterized through the `typst` CLI at `--ppi` (the VSDX format cannot carry SVG); no typst on PATH → exit `2` ([../spec.md](../spec.md) § Image nodes).
 - Not supported: multi-page documents, curved/right-angle routed connectors, masters/stencils, images on edges.
