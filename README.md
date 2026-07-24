@@ -1,12 +1,17 @@
 # ccx — Claude Code plugin marketplace (byteaid/b8.ccx)
 
+**Version:** v1.1.0
+**Updated:** 2026-07-23
+
 A personal Claude Code marketplace. Each plugin is a self-contained directory under `plugins/` with its own `.claude-plugin/plugin.json`. The top-level `.claude-plugin/marketplace.json` is the catalog users add to their Claude Code install.
 
 ## Available plugins
 
 | Plugin | Description |
 |---|---|
-| [`buildx`](./plugins/buildx) | Orchestrator agent for end-to-end software delivery: `buildx` + the `analyst` / `dotnet-architect` / `dotnet-developer` / `dotnet-test-designer` / `dotnet-reviewer` specialists, the `development-documentation` skill, and a .NET / ASP.NET Core / Playwright knowledge bundle (~42 skills). |
+| [`buildx`](./plugins/buildx) | Orchestrator agent for end-to-end software delivery: `buildx` + the `analyst` / `dotnet-architect` / `dotnet-developer` / `dotnet-test-designer` / `dotnet-reviewer` specialists, the `development-documentation` / `development-methodology` skills, five slash skills (docs/test upgrades, reverse-engineering, remote desired-state sync), and a .NET / ASP.NET Core / Playwright / Aspire / EF Core / Bootstrap knowledge bundle (~43 skills). |
+| [`azx`](./plugins/azx) | Azure skills bundle: `azure-pricing-api` (dated cost quotes), `byteaid-assets-icons` (resolve/verify/download service icons), `azure-diagrams` (Azure composition layer over the `dgx` render targets), `generate-azure-solution-proposal` (9-section proposal, Typst → PDF), `generate-azure-usage-report` (monthly usage report, script pipeline + Typst → PDF). |
+| [`dgx`](./plugins/dgx) | Provider-agnostic diagram formats: `typst-diagrams` (Typst/`fletcher` node-edge diagrams for PDF/print) and `vsdx-diagrams` (JSON spec → native Visio `.vsdx` via a bundled .NET 10 script — shapes, svg/raster icon nodes with auto-rasterization, glued connectors, group enclosures; no Visio required). |
 
 ## Installing
 
@@ -14,8 +19,10 @@ A personal Claude Code marketplace. Each plugin is a self-contained directory un
 # Add the marketplace (once)
 /plugin marketplace add byteaid/b8.ccx
 
-# Install the plugin
+# Install plugins
 /plugin install buildx@ccx
+/plugin install azx@ccx
+/plugin install dgx@ccx
 ```
 
 For local development against this checkout:
@@ -50,7 +57,11 @@ When a new commit lands on the default branch:
 ```text
 /plugin marketplace update ccx
 /plugin update buildx@ccx
+/plugin update azx@ccx
+/plugin update dgx@ccx
 ```
+
+Non-interactive alternative (terminal): `claude plugin marketplace update ccx && claude plugin update <plugin>@ccx`.
 
 `plugin.json` for each plugin omits an explicit `version`, so Claude Code uses the git commit SHA as the cache key — every commit counts as a new version and `/plugin update` always pulls the latest.
 
@@ -61,11 +72,13 @@ When a new commit lands on the default branch:
 ├── .claude-plugin/
 │   └── marketplace.json          # marketplace catalog
 ├── plugins/
-│   └── buildx/
+│   ├── buildx/                   # 6 agents + ~43 skills
+│   ├── azx/                      # 5 Azure skills
+│   └── dgx/                      # 2 diagram-format skills
 │       ├── .claude-plugin/
-│       │   └── plugin.json       # plugin manifest
-│       ├── agents/               # 5 agents
-│       └── skills/               # ~42 skills (each is a folder with SKILL.md)
+│       │   └── plugin.json       # plugin manifest (one per plugin)
+│       └── skills/               # each skill is a folder with SKILL.md (+ optional scripts/)
+├── AGENTS.md                     # authoring rules + per-plugin specs
 └── README.md
 ```
 

@@ -1,6 +1,6 @@
 # VSDX Diagram Spec (JSON)
 
-**Version:** v1.1.0
+**Version:** v1.2.0
 **Updated:** 2026-07-23
 
 L2 leaf. Input contract of [scripts/json-to-vsdx.cs](scripts/json-to-vsdx.cs). Property names are case-insensitive; comments and trailing commas tolerated. Units: **inches**, origin **bottom-left**.

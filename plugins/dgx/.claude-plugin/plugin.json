@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "dgx",
   "displayName": "dgx",
-  "description": "Diagram authoring/export bundle (provider-agnostic): typst-diagrams (Typst/fletcher node-edge diagrams with local image embedding, compile-verified) and vsdx-diagrams (JSON diagram spec → native Visio .vsdx via a bundled .NET 10 script — shapes, embedded raster icons, connectors with glue, dashed group enclosures).",
+  "description": "Diagram authoring/export bundle (provider-agnostic): typst-diagrams (Typst/fletcher node-edge diagrams with local image embedding, compile-verified) and vsdx-diagrams (JSON diagram spec → native Visio .vsdx via a bundled .NET 10 script — shapes, svg/raster icon nodes with typst auto-rasterization, connectors with glue, dashed group enclosures).",
   "author": {
     "name": "a3.diaz",
     "email": "a3.diaz@outlook.com"

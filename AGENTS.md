@@ -1,6 +1,6 @@
 # ccx — Claude Code Plugin Marketplace
 
-**Version:** v1.11.0
+**Version:** v1.12.0
 **Updated:** 2026-07-23
 
 Personal Claude Code marketplace. Each plugin lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json`; the top-level `.claude-plugin/marketplace.json` is the catalog users add to their Claude Code install. Targets **Claude Code only** — no cross-provider deploy, no research substrate, no per-customer scoping.

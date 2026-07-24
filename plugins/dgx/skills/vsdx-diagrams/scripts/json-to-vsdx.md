@@ -1,6 +1,6 @@
 # json-to-vsdx
 
-**Version:** v1.1.0
+**Version:** v1.2.0
 **Updated:** 2026-07-23
 
 Deterministic converter: JSON diagram spec → native Visio `.vsdx` (MS-VSDX, opens in Visio 2013+ and diagrams.net). Pure BCL .NET 10 file-based app — no NuGet packages, no Visio installation required to generate.
