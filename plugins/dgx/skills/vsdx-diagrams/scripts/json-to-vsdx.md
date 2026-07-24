@@ -1,6 +1,6 @@
 # json-to-vsdx
 
-**Version:** v1.0.0
+**Version:** v1.1.0
 **Updated:** 2026-07-23
 
 Deterministic converter: JSON diagram spec → native Visio `.vsdx` (MS-VSDX, opens in Visio 2013+ and diagrams.net). Pure BCL .NET 10 file-based app — no NuGet packages, no Visio installation required to generate.
@@ -22,11 +22,11 @@ dotnet run ${CLAUDE_SKILL_DIR}/scripts/json-to-vsdx.cs -- --input spec.json --ou
 |---|---|
 | `0` | `.vsdx` written and self-checked (every XML part re-parsed). |
 | `1` | Usage / IO error, or self-check failed. |
-| `2` | Spec validation failed — no nodes, duplicate node ids, edge/group referencing an unknown node, unknown `shape`. All violations listed on stderr. |
+| `2` | Spec validation failed — no nodes, duplicate node ids, edge/group referencing an unknown node, unknown `shape`, missing/unsupported `image` (incl. `.svg` — rasterize first). All violations listed on stderr. |
 
 ## Output
 
-Stdout (data): one JSON line — `{"output","nodes","edges","groups","pageWidth","pageHeight"}`. Stderr: diagnostics only.
+Stdout (data): one JSON line — `{"output","nodes","edges","groups","images","pageWidth","pageHeight"}`. Stderr: diagnostics only.
 
 Determinism: same spec → byte-identical `.vsdx` (zip entry timestamps are fixed), so re-runs are idempotent and diffable by hash.
 
@@ -36,4 +36,5 @@ Determinism: same spec → byte-identical `.vsdx` (zip entry timestamps are fixe
 - Page size: explicit `pageWidth`/`pageHeight`, else computed to fit content + margin.
 - Connectors are 1-D shapes glued to source/target (`Connects` + `_WALKGLUE` formulas) — they survive moving shapes in Visio. Endpoints are pre-clipped at node borders so non-Visio viewers render them correctly too.
 - Groups render as dashed enclosures behind their member nodes (bounding box + inset, label top-centered).
-- Not supported (v1): embedded images/icons inside shapes, multi-page documents, curved/right-angle routed connectors, masters/stencils.
+- Nodes with `image` embed the raster (`png|jpg|jpeg|gif`) as a Foreign object — image IS the node, label below, media parts deduplicated by full path. Image paths resolve against the working directory. SVG is rejected (exit `2`) — the format cannot carry it; rasterize first ([../spec.md](../spec.md) § Image nodes).
+- Not supported: multi-page documents, curved/right-angle routed connectors, masters/stencils, images on edges.

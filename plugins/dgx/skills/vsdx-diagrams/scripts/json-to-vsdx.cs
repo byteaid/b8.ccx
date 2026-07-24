@@ -48,12 +48,24 @@ foreach (var e in edges)
 foreach (var g in groups)
     foreach (var m in g.Members ?? new())
         if (!byId.ContainsKey(m)) errors.Add($"group '{g.Label}' references unknown node '{m}'");
+var imgTypes = new Dictionary<string, (string Compression, string ContentType)>
+    { ["png"] = ("PNG", "image/png"), ["jpg"] = ("JPEG", "image/jpeg"), ["jpeg"] = ("JPEG", "image/jpeg"), ["gif"] = ("GIF", "image/gif") };
+string Ext(string path) => Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
 foreach (var n in nodes)
+{
     if (n.Shape is not (null or "rectangle" or "rounded" or "ellipse")) errors.Add($"node '{n.Id}': unknown shape '{n.Shape}' (rectangle|rounded|ellipse)");
+    if (n.Image is null) continue;
+    if (Ext(n.Image) == "svg") errors.Add($"node '{n.Id}': SVG cannot be embedded in VSDX (Visio vectorizes it, the file format only carries raster ForeignData) — rasterize to PNG first and reference the PNG");
+    else if (!imgTypes.ContainsKey(Ext(n.Image))) errors.Add($"node '{n.Id}': unsupported image type '.{Ext(n.Image)}' (png|jpg|jpeg|gif)");
+    else if (!File.Exists(n.Image)) errors.Add($"node '{n.Id}': image not found: {n.Image}");
+}
 if (errors.Count > 0) return Fail(2, string.Join("\n", errors));
 
 // ---- layout (auto when any node lacks x/y): layered left-to-right by longest path from sources ----
-const double DefW = 1.6, DefH = 1.0, HGap = 1.1, VGap = 0.55, Margin = 0.75;
+const double DefW = 1.6, DefH = 1.0, DefIcon = 0.6, LabelZone = 0.3, HGap = 1.1, VGap = 0.55, Margin = 0.75;
+double NW(Node n) => n.W ?? (n.Image is null ? DefW : DefIcon);
+double NH(Node n) => n.H ?? (n.Image is null ? DefH : DefIcon);
+double NEH(Node n) => NH(n) + (n.Image is null ? 0 : LabelZone);         // effective height: image nodes hang their label below
 var pos = new Dictionary<string, (double X, double Y, double W, double H)>();
 if (nodes.Any(n => n.X is null || n.Y is null))
 {
@@ -62,22 +74,21 @@ if (nodes.Any(n => n.X is null || n.Y is null))
         foreach (var e in edges)
             if (layer[e.To] < layer[e.From] + 1 && layer[e.From] + 1 < nodes.Count) layer[e.To] = layer[e.From] + 1;
     var cols = nodes.GroupBy(n => layer[n.Id]).OrderBy(g => g.Key).ToList();
-    double contentH = cols.Max(c => c.Sum(n => n.H ?? DefH) + (c.Count() - 1) * VGap);
+    double contentH = cols.Max(c => c.Sum(NEH) + (c.Count() - 1) * VGap);
     foreach (var col in cols)
     {
-        double x = Margin + col.Key * (DefW + HGap) + (col.Max(n => n.W ?? DefW)) / 2;
-        double colH = col.Sum(n => n.H ?? DefH) + (col.Count() - 1) * VGap;
+        double x = Margin + col.Key * (DefW + HGap) + col.Max(NW) / 2;
+        double colH = col.Sum(NEH) + (col.Count() - 1) * VGap;
         double y = Margin + contentH - (contentH - colH) / 2;            // vertically centered, stacked top-down
         foreach (var n in col)
         {
-            double h = n.H ?? DefH;
-            pos[n.Id] = (x, y - h / 2, n.W ?? DefW, h);
-            y -= h + VGap;
+            pos[n.Id] = (x, y - NH(n) / 2, NW(n), NH(n));
+            y -= NEH(n) + VGap;
         }
     }
 }
 else
-    foreach (var n in nodes) pos[n.Id] = (n.X!.Value, n.Y!.Value, n.W ?? DefW, n.H ?? DefH);
+    foreach (var n in nodes) pos[n.Id] = (n.X!.Value, n.Y!.Value, NW(n), NH(n));
 
 double pageW = spec.PageWidth ?? Math.Ceiling(pos.Values.Max(p => p.X + p.W / 2) + Margin);
 double pageH = spec.PageHeight ?? Math.Ceiling(pos.Values.Max(p => p.Y + p.H / 2) + Margin);
@@ -111,10 +122,32 @@ XElement Box(int id, double x, double y, double w, double h, string? label, stri
         CharSize(fontPt), ellipse ? EllipseGeom(w, h) : RectGeom(),
         string.IsNullOrEmpty(label) ? null : new XElement(V + "Text", label));
 
+// Foreign (image) shape: the image IS the node — no line/fill; label hangs below via the text transform
+XElement Pic(int id, double x, double y, double w, double h, string? label, double fontPt, string comp, string relId)
+{
+    double tw = Math.Max(w * 2, 1.4);
+    return new(V + "Shape", new XAttribute("ID", id), new XAttribute("NameU", $"Sheet.{id}"), new XAttribute("Type", "Foreign"),
+        new XAttribute("LineStyle", "0"), new XAttribute("FillStyle", "0"), new XAttribute("TextStyle", "0"),
+        Cell("PinX", N(x)), Cell("PinY", N(y)), Cell("Width", N(w)), Cell("Height", N(h)),
+        Cell("LocPinX", N(w / 2), "Width*0.5"), Cell("LocPinY", N(h / 2), "Height*0.5"), Cell("Angle", "0"),
+        Cell("LinePattern", "0"), Cell("FillPattern", "0"),
+        Cell("ImgOffsetX", "0", "ImgWidth*0"), Cell("ImgOffsetY", "0", "ImgHeight*0"),
+        Cell("ImgWidth", N(w), "Width*1"), Cell("ImgHeight", N(h), "Height*1"),
+        Cell("TxtPinX", N(w / 2), "Width*0.5"), Cell("TxtPinY", "0", "Height*0"),
+        Cell("TxtWidth", N(tw)), Cell("TxtHeight", N(LabelZone)),
+        Cell("TxtLocPinX", N(tw / 2), "TxtWidth*0.5"), Cell("TxtLocPinY", N(LabelZone), "TxtHeight*1"),
+        Cell("TxtAngle", "0"), Cell("VerticalAlign", "0"),
+        CharSize(fontPt), RectGeom(),
+        new XElement(V + "ForeignData", new XAttribute("ForeignType", "Bitmap"), new XAttribute("CompressionType", comp),
+            new XElement(V + "Rel", new XAttribute(RD + "id", relId))),
+        string.IsNullOrEmpty(label) ? null : new XElement(V + "Text", label));
+}
+
 var shapeId = new Dictionary<string, int>();
 int nextId = 1;
 var shapes = new List<XElement>();
 var connects = new List<XElement>();
+var media = new Dictionary<string, (int Index, string Ext)>();            // full path -> media part (deduped)
 
 foreach (var g in groups)                                               // groups first = behind (z-order is document order)
 {
@@ -128,8 +161,15 @@ foreach (var n in nodes)
 {
     var p = pos[n.Id];
     shapeId[n.Id] = nextId;
-    shapes.Add(Box(nextId++, p.X, p.Y, p.W, p.H, n.Label ?? n.Id, n.Fill ?? "#ffffff", n.Line ?? "#404040",
-        false, n.Shape == "rounded", n.Shape == "ellipse", n.FontSize ?? 10, false));
+    if (n.Image is null)
+        shapes.Add(Box(nextId++, p.X, p.Y, p.W, p.H, n.Label ?? n.Id, n.Fill ?? "#ffffff", n.Line ?? "#404040",
+            false, n.Shape == "rounded", n.Shape == "ellipse", n.FontSize ?? 10, false));
+    else
+    {
+        var full = Path.GetFullPath(n.Image);
+        if (!media.TryGetValue(full, out var m)) media[full] = m = (media.Count + 1, Ext(n.Image));
+        shapes.Add(Pic(nextId++, p.X, p.Y, p.W, p.H, n.Label ?? n.Id, n.FontSize ?? 9, imgTypes[m.Ext].Compression, $"rId{m.Index}"));
+    }
 }
 foreach (var e in edges)
 {
@@ -178,6 +218,8 @@ var parts = new Dictionary<string, XDocument>
     ["[Content_Types].xml"] = Doc(new XElement(CT + "Types",
         new XElement(CT + "Default", new XAttribute("Extension", "rels"), new XAttribute("ContentType", "application/vnd.openxmlformats-package.relationships+xml")),
         new XElement(CT + "Default", new XAttribute("Extension", "xml"), new XAttribute("ContentType", "application/xml")),
+        media.Values.Select(m => m.Ext).Distinct().Select(e =>
+            new XElement(CT + "Default", new XAttribute("Extension", e), new XAttribute("ContentType", imgTypes[e].ContentType))),
         new XElement(CT + "Override", new XAttribute("PartName", "/visio/document.xml"), new XAttribute("ContentType", "application/vnd.ms-visio.drawing.main+xml")),
         new XElement(CT + "Override", new XAttribute("PartName", "/visio/pages/pages.xml"), new XAttribute("ContentType", "application/vnd.ms-visio.pages+xml")),
         new XElement(CT + "Override", new XAttribute("PartName", "/visio/pages/page1.xml"), new XAttribute("ContentType", "application/vnd.ms-visio.page+xml")),
@@ -217,6 +259,11 @@ var parts = new Dictionary<string, XDocument>
         new XElement(V + "Shapes", shapes),
         connects.Count == 0 ? null : new XElement(V + "Connects", connects))),
 };
+if (media.Count > 0)
+    parts["visio/pages/_rels/page1.xml.rels"] = Doc(new XElement(PR + "Relationships",
+        media.Values.Select(m => new XElement(PR + "Relationship", new XAttribute("Id", $"rId{m.Index}"),
+            new XAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"),
+            new XAttribute("Target", $"../media/image{m.Index}.{m.Ext}")))));
 
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output)) ?? ".");
 if (File.Exists(output)) File.Delete(output);                            // ZipArchiveMode.Create requires a fresh file
@@ -228,11 +275,21 @@ using (var zip = ZipFile.Open(output, ZipArchiveMode.Create))
         using var s = entry.Open();
         doc.Save(s);
     }
+using (var zip = ZipFile.Open(output, ZipArchiveMode.Update))
+    foreach (var (path, m) in media)
+    {
+        var entry = zip.CreateEntry($"visio/media/image{m.Index}.{m.Ext}", CompressionLevel.Optimal);
+        entry.LastWriteTime = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        using var s = entry.Open();
+        using var f = File.OpenRead(path);
+        f.CopyTo(s);
+    }
 
 // ---- self-check: reopen and re-parse every XML part ----
 using (var zip = ZipFile.OpenRead(output))
     foreach (var entry in zip.Entries)
     {
+        if (!entry.FullName.EndsWith(".xml") && !entry.FullName.EndsWith(".rels")) continue; // media parts are binary
         using var s = entry.Open();
         try { XDocument.Load(s); } catch (Exception ex) { return Fail(1, $"self-check failed for {entry.FullName}: {ex.Message}"); }
     }
@@ -243,6 +300,7 @@ Console.WriteLine(JsonSerializer.Serialize(new
     nodes = nodes.Count,
     edges = edges.Count,
     groups = groups.Count,
+    images = media.Count,
     pageWidth = pageW,
     pageHeight = pageH,
 }));
@@ -255,6 +313,6 @@ int Fail(int code, string msg)
 }
 
 record Spec(string? Title, double? PageWidth, double? PageHeight, List<Node>? Nodes, List<Edge>? Edges, List<Group>? Groups);
-record Node(string Id, string? Label, double? X, double? Y, double? W, double? H, string? Shape, string? Fill, string? Line, double? FontSize);
+record Node(string Id, string? Label, double? X, double? Y, double? W, double? H, string? Shape, string? Fill, string? Line, double? FontSize, string? Image);
 record Edge(string From, string To, string? Label, bool? Arrow, bool? Dashed, string? Line, double? FontSize);
 record Group(string? Label, List<string>? Members, string? Line);

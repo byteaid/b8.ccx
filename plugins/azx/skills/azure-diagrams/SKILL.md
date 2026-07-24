@@ -20,7 +20,7 @@ L1 index. How to compose **resolved** Azure service icons into an architecture d
 |---|---|---|
 | Docs site, VS Code preview, mkdocs-material, embedded mermaid.js | **mermaid** | External `<img>` in labels renders by default. |
 | PDF / print deliverable (proposal, report) | **Typst** via `typst-diagrams` | High-fidelity, offline, paginated; icons embedded from local files. |
-| Editable Visio deliverable (.vsdx) | **`vsdx-diagrams`** | Native Visio file from a JSON spec. No icon embedding (v1) — labeled shapes only; say so before choosing it. |
+| Editable Visio deliverable (.vsdx) | **`vsdx-diagrams`** | Native Visio file from a JSON spec, icons included — rasterize each downloaded SVG to PNG first (`vsdx-diagrams` § spec has the Typst recipe). |
 | **GitHub.com markdown** | Typst, or pre-rendered image | GitHub sanitizes external images inside mermaid — icons silently vanish. |
 
 ## Non-negotiable rules (all targets)
@@ -28,7 +28,7 @@ L1 index. How to compose **resolved** Azure service icons into an architecture d
 1. **The icon IS the node.** Suppress any enclosing box/circle around an icon-bearing node. Reserve shapes ONLY for groupings (regions, zones) and for icon-less actors (users, external SaaS).
 2. **Resolve before authoring.** Every Azure node's slug is resolved + verified `200` + (for Typst) downloaded via `byteaid-assets-icons` this session. One slug per service across the WHOLE artifact — never mix `app-services` and `app-service-plans` for the same node.
 3. **Edges carry protocol/port; nodes carry icons.** Label edges with protocol/port (`HTTPS 443`, `TDS 1433`, `HTTPS / SAS`); never put an icon on an edge.
-4. **Pick the target by consumption surface** (table above) before drawing — a mermaid diagram bound for GitHub.com loses its icons; a Visio deliverable loses the icons entirely.
+4. **Pick the target by consumption surface** (table above) before drawing — a mermaid diagram bound for GitHub.com loses its icons; a Visio deliverable needs the SVGs rasterized to PNG first.
 5. **Standard sizes.** Source viewBox is `0 0 18 18` (scales cleanly). Mermaid node icon `width='36'` (`24` dense); Typst `28pt` diagram node, `18pt` inline.
 
 ## Dispatch
@@ -37,7 +37,7 @@ L1 index. How to compose **resolved** Azure service icons into an architecture d
 |---|---|
 | Mermaid recipe — `<img>` in the node label, conventions, renderer caveats (incl. GitHub stripping) | [mermaid.md](mermaid.md) |
 | Typst — Azure deltas over the generic recipe (`azicon`/`svc` helpers, download discipline, host layouts) | [typst-fletcher.md](typst-fletcher.md) |
-| Visio — spec authoring and generation | `vsdx-diagrams` § spec (icons not embeddable; put the service name + role in the node label) |
+| Visio — spec authoring, SVG→PNG rasterization, generation | `vsdx-diagrams` § spec (image nodes carry the rasterized icon; label = service name + role) |
 
 ## Cross-references
 

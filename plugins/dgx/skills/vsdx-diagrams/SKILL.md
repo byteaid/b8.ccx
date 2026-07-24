@@ -1,6 +1,6 @@
 ---
 name: vsdx-diagrams
-description: Generate a native, editable Visio .vsdx diagram from a declarative JSON spec (nodes, edges, groups) via the bundled json-to-vsdx.cs .NET 10 script — pure BCL, no Visio and no third-party library required. Shapes (rectangle/rounded/ellipse), glued 1-D connectors with labels and arrows, dashed group enclosures, auto or explicit layout. Provider-agnostic: works for any topology/architecture/flow diagram, not just Azure. Does NOT embed images/icons inside shapes (v1) and is NOT for PDF/print output (that is `typst-diagrams`) nor markdown-embedded diagrams (mermaid).
+description: Generate a native, editable Visio .vsdx diagram from a declarative JSON spec (nodes, edges, groups) via the bundled json-to-vsdx.cs .NET 10 script — pure BCL, no Visio and no third-party library required. Shapes (rectangle/rounded/ellipse), image nodes (embedded raster icons — png/jpg/gif; the image IS the node, label below), glued 1-D connectors with labels and arrows, dashed group enclosures, auto or explicit layout. Provider-agnostic: works for any topology/architecture/flow diagram, not just Azure. SVG sources must be rasterized first (recipe included). NOT for PDF/print output (that is `typst-diagrams`) nor markdown-embedded diagrams (mermaid).
 when_to_use: |
   - The deliverable is a Visio file: .vsdx, "diagrama de Visio", "editable in Visio", a customer that works in Visio.
   - Exporting an already-designed topology/architecture/flow to .vsdx alongside other render targets.
@@ -20,18 +20,19 @@ L1 index. Producing a native Visio `.vsdx` is a 3-step deterministic procedure �
 
 ## Procedure
 
-1. **Author the spec** — write `{name}.json` per [spec.md](spec.md). Prefer auto-layout (omit `x`/`y`) for flow-shaped diagrams; use explicit positions only when the consumer dictates placement.
-2. **Run the script** — see [scripts/json-to-vsdx.md](scripts/json-to-vsdx.md):
+1. **Prepare images (only if the diagram carries icons).** VSDX embeds raster only — rasterize any SVG icon to PNG first (Typst recipe in [spec.md](spec.md) § Image nodes) and place the PNGs beside the spec.
+2. **Author the spec** — write `{name}.json` per [spec.md](spec.md). Prefer auto-layout (omit `x`/`y`) for flow-shaped diagrams; use explicit positions only when the consumer dictates placement. Icon nodes: set `image`, keep the label short.
+3. **Run the script** — from the spec's folder (image paths resolve against cwd); see [scripts/json-to-vsdx.md](scripts/json-to-vsdx.md):
    `dotnet run ${CLAUDE_SKILL_DIR}/scripts/json-to-vsdx.cs -- --input {name}.json --output {name}.vsdx`
    Exit `2` = spec violation (all violations on stderr — fix the spec, re-run); exit `0` = written + self-checked.
-3. **Verify** — trust exit `0` for structure. On Windows with Visio installed, optionally smoke-test visually: open via COM (`New-Object -ComObject Visio.InvisibleApp`, `Documents.Open`, `Page.Export("{name}.png")`) and inspect the PNG. State clearly when visual verification was not possible.
+4. **Verify** — trust exit `0` for structure. On Windows with Visio installed, optionally smoke-test visually: open via COM (`New-Object -ComObject Visio.InvisibleApp`, `Documents.Open`, `Page.Export("{name}.png")`) and inspect the PNG. State clearly when visual verification was not possible.
 
 ## Rules
 
 1. **The spec is the source of truth.** Iterate on the JSON and regenerate — never patch the `.vsdx` (output is deterministic; a re-run is cheap and byte-stable).
 2. **Edges carry protocol/port; nodes carry the concept.** Same discipline as every diagram target; keep edge labels short — they render on the line.
-3. **No icons in v1.** Shapes are labeled boxes/ellipses. If the consumer needs iconful diagrams, say so and offer mermaid or `typst-diagrams` instead (or in addition).
-4. Commit the spec JSON next to the generated `.vsdx` so the diagram is regenerable.
+3. **When a node carries an image, the image IS the node** — the script draws no border/fill around it and hangs the label below; do not fake icon nodes with filled boxes when a raster is available.
+4. Commit the spec JSON (and the rasterized icons it references) next to the generated `.vsdx` so the diagram is regenerable.
 
 ## Dispatch
 

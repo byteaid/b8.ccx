@@ -19,7 +19,7 @@
     {
       "name": "dgx",
       "source": "./plugins/dgx",
-      "description": "Diagram authoring/export bundle (provider-agnostic): typst-diagrams (Typst/fletcher node-edge diagrams with local image embedding) and vsdx-diagrams (JSON diagram spec → native Visio .vsdx via a bundled .NET 10 script — shapes, glued connectors, group enclosures, no Visio required)."
+      "description": "Diagram authoring/export bundle (provider-agnostic): typst-diagrams (Typst/fletcher node-edge diagrams with local image embedding) and vsdx-diagrams (JSON diagram spec → native Visio .vsdx via a bundled .NET 10 script — shapes, embedded raster icons, glued connectors, group enclosures, no Visio required)."
     }
   ]
 }
