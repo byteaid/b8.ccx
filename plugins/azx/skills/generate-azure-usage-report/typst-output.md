@@ -1,7 +1,7 @@
 # Typst Output — Light Usage Report
 
-**Version:** v1.2.0
-**Updated:** 2026-07-21
+**Version:** v1.3.0
+**Updated:** 2026-11-04
 
 L2 leaf. `render-typst` (stage 10) reads `usage-report.json` + optional `narrative.json`, merges them into `data.json`, and writes a Typst project under `{stage-dir}/typst/`. The document body and all tables/callouts are generated in C# as **literal Typst markup**; the theme + reusable helpers live in an embedded preamble. Output is **Spanish** (identifiers/comments in the script stay English).
 
@@ -68,10 +68,11 @@ There is NO conclusion chapter — the light report front-loads everything decis
 | displayType | Rendered as |
 |---|---|
 | `MonthlyTrend` | **Column chart** on a light panel: per month a bold value label, a proportional column (current month = full primary color, prior months lightened), the month name, and the MoM delta with colored arrow (⬆ rojo up, ⬇ verde down, – flat). Pure Typst (`box` rects) — no chart packages, fully deterministic. |
-| `BarList` | **Horizontal bar list** (`grid`: label 5.2cm · proportional bar · bold value). Bars scale to the row max; `color` maps to the semáforo palette (rojo/naranja/verde/azul), absent = primary. Used for sizing classification, WAF actions, and security severity. |
+| `BarList` | **Horizontal bar list** (`grid`: label 5.2cm · proportional bar · bold value). Bars scale to the row max; `color` maps to the semáforo palette (rojo/naranja/verde/azul), absent = primary. Used for sizing classification, WAF attack categories, and security severity. |
+| `DailyBars` | **Daily column chart** on a light panel: one column per day of `data.days` (`{ day, label, requests, blocked, detected, hasData }`), stacked rojo (blocked) over lightened primary (detected, not blocked), scaled to the busiest day; days with `hasData:false` draw a thin grey tick so a retention gap stays visible. Day labels every 5 days (all when ≤ 12 days); legend line with the max/day and `daysWithoutData`. Pure Typst boxes. Used for the WAF daily trend. |
 | `GroupedMonthly` | Zebra table Concepto × month columns, bold Total row. |
 | `CountTable` | Zebra table Concepto / Cantidad, bold Total row. |
-| `Table` | Generic zebra table from `headers`/`rows`; per-column `align` (`l`/`r`/`c`); drops to 8pt when `dense`, >15 rows, or >5 columns. Text (`l`) columns get fractional widths (first 1.6fr, rest 1fr) and numeric/centered columns auto-size; long unbroken tokens (ARM names, URIs, thumbprints) receive zero-width-space break opportunities so they wrap inside their own cell instead of overflowing the neighbour. **Status tokens are auto-colored** (exact match): rojo — Alta, High, Crítico, Vencido, Zombie; naranja — Media, Medium, Advertencia, Sobredimensionado, Saturado, Detection; verde — Baja, Low, OK, Correcto, Enabled, Prevention; azul — Informativo (env-degraded findings); "No aplica"/"No verificable" stay uncolored. |
+| `Table` | Generic zebra table from `headers`/`rows`; per-column `align` (`l`/`r`/`c`); drops to 8pt when `dense`, >15 rows, or >5 columns. Text (`l`) columns get fractional widths (first 1.6fr, rest 1fr) and numeric/centered columns auto-size, unless the block passes an explicit `widths` array (Typst track sizes, one per header — the WAF summary uses `1.4fr / auto / 2fr` so its Lectura column reads as prose); long unbroken tokens (ARM names, URIs, thumbprints) receive zero-width-space break opportunities so they wrap inside their own cell instead of overflowing the neighbour. **Status tokens are auto-colored** (exact match): rojo — Alta, High, Crítico, Vencido, Zombie; naranja — Media, Medium, Advertencia, Sobredimensionado, Saturado, Detection; verde — Baja, Low, OK, Correcto, Enabled, Prevention; azul — Informativo (env-degraded findings); "No aplica"/"No verificable" stay uncolored. |
 | `Paragraph` | The block's `description` as prose. |
 
 Empty data renders an italic "Sin datos disponibles."; unknown displayType renders a "Tipo de visualización no soportado" note.

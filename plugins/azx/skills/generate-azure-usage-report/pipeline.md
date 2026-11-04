@@ -1,7 +1,7 @@
 # Pipeline Contracts — Azure Usage Report (Light)
 
-**Version:** v2.1.0
-**Updated:** 2026-07-21
+**Version:** v2.2.0
+**Updated:** 2026-11-04
 
 L2 leaf. Wire-format contracts every stage MUST honour. Per-stage arguments, exit codes, and side effects live in each script's paired `.md` under `scripts/` — this file owns the cross-stage schemas: the staged inputs stage 9 consumes, the `usage-report.json` it emits, the classification thresholds, and the `narrative.json` schema.
 
@@ -26,7 +26,7 @@ Shapes stage 9 depends on (each producer's `.md` documents the rest):
 - `resources.json` — `{ subscriptionId, resources: [{ id, name, type, region, resourceGroup, kind?, sku?: { name, tier, capacity? }, tags?, properties? }] }`. `type` is a flat mixed-case string; `sku` a sibling object; `properties` an ARM passthrough (stage 9 reads `diskState`, `ipConfiguration`, `numberOfSites`, `policySettings`, `webApplicationFirewallConfiguration`, `allowBlobPublicAccess` from it).
 - `costs.json` — `{ subscriptionId, start, end, granularity, costs: [{ cloudId, day, value, chargeType }] }`. `cloudId` lowercase ARM id; joins are by `id.ToLowerInvariant()`.
 - `metrics.json` — `{ subscriptionId, start, end, metrics: [{ cloudId, name, aggregation, granularity, values: [{ timestamp, value }] }] }`. CPU family = `CpuPercentage` | `cpu_percent` | `Percentage CPU`; other series (e.g. `MemoryPercentage`) are staged but not classified.
-- `waf-logs.json` — `{ workspaceId|null, start, end, sources: [{ source, byAction, topRules, topClientIps, topUris, topRuleUris, dailyTrend }] }`; every aggregate row carries `hits` plus its dimension columns.
+- `waf-logs.json` — `{ workspaceId|null, start, end, sources: [{ source, summary, byAction, byPolicy, byCategory, byHost, topRules, topClientIps, topUris, fpCandidates, dailyTrend }] }`. Two units on every aggregate: `events` (rule-match log rows) and `requests` (distinct transaction ids — "an attack"), the latter split as `blockedRequests` / `detectedRequests` (+ `allowedRequests` / `challengedRequests` in `summary`). `byPolicy` rows carry `resourceId` (gateway) + `policyId` + `policyScope` — the join key to the ARM inventory; `category` is the rule-id prefix (`942` SQLi…, `bot:100|200|300`, `custom:<name>`); `fpCandidates` rows carry `hits`, `ruleTotal`, `sharePct`, `distinctIps`, `blockedHits`, `detectedHits`. `start`/`end` define the daily-chart window. Full column list in `scripts/fetch-waf-logs.md`.
 - `advisor.json` — `{ subscriptionId, recommendations: [{ category, impact, impactedField, impactedValue, problem, solution, resourceId?, annualSavingsAmount?, savingsCurrency? }] }`. Categories: `Cost | Security | HighAvailability | OperationalExcellence | Performance`.
 - `security.json` — `{ subscriptionId, present, secureScore?: { current, max, percentage }, assessmentCounts: { total, unhealthy, bySeverity }, unhealthyAssessments: [{ displayName, severity, resourceId? }], sqlAuditing: [{ serverId, name, state }], webAccessRestrictions: [{ siteId, name, publicNetworkAccess?, restrictionCount, denyAll, openToAll }], dbFirewallRules: [{ serverId, name, startIpAddress, endIpAddress }] }`. `percentage` already ×100; `sqlAuditing`, `webAccessRestrictions`, and `dbFirewallRules` enumerate from `resources.json` (SQL servers / sites / SQL+flexible servers); `openToAll` = the site's direct endpoint accepts traffic from anywhere (no PNA-disable, no deny-all, no specific restrictions).
 - `resilience.json` — `{ subscriptionId, vaults, protectedItems: [{ sourceResourceId, ... }], webCertificates: [{ name, expirationDate, issuer, hostNames }], autoscaleSettings: [{ targetResourceUri, enabled, minCapacity, maxCapacity }], sqlBackupPolicies: [{ databaseId, retentionDays, weeklyRetention, monthlyRetention, yearlyRetention }], storageBlobServices: [{ accountId, blobSoftDeleteEnabled, blobSoftDeleteDays?, containerSoftDeleteEnabled, versioningEnabled }], resourceZones: [{ id, zones: [], availabilitySetId? }], fileShares: [{ accountId, shareName }], webAppBackups: [{ siteId, status: "Configured"|"NotConfigured"|"NotVerifiable", retentionDays?, frequency? }], keyVaultCertificates: [{ secretId, expirationDate? }] }`. LTR values of `PT0S` mean "not configured"; `resourceZones` covers the types whose `zones` array is top-level (VMs, VMSS, Redis, App Gateway); the SQL/storage/site/Key-Vault sub-fetches enumerate from `resources.json` and stay empty when it is not staged. `webAppBackups` and `keyVaultCertificates` are the privileged checks — Contributor (or higher) + Key Vault data-plane read is ASSUMED and always attempted; denial degrades per-resource to `NotVerifiable` / missing `expirationDate`, never a failed stage. Embedded App Gateway listener certs (`publicCertData`) are still parsed by stage 9 from `resources.json` properties (`sslCertificates` + `httpListeners`).
@@ -60,7 +60,7 @@ Section ids, block ids, and their order are **FIXED — identical on every run**
 | Section | Canonical blocks (fixed order, with caps) |
 |---|---|
 | `costos` | `cost-trend` (MonthlyTrend chart) · `cost-by-service` (GroupedMonthly top 5) · `cost-top-resources` (GroupedMonthly top 5) · `sizing-summary` (BarList, CPU classification) · `utilization` (Table, top 12 Zombie/Sobredimensionado by monthly cost + grouped residual rows, with Entorno) · `unused` (Table, 10 + grouped residual rows) · `advisor-cost` (Table, 8 + grouped residual, with savings) |
-| `seguridad` | `security-severity` (BarList; description carries the secure score or its unavailability) · `security-findings` (Table, 10 + per-severity grouped rows) · `security-surface` (CountTable; includes SQL servers without auditing) · `waf-exposure` (Table, findings only, grouped rows: apps whose public traffic bypasses the WAF) · `infra-exposure` (Table, findings only, grouped rows: infra accepting any-origin traffic) · `waf-inventory` (Table) · `waf-actions` (BarList, merged) · `waf-top-rules` (Table, top 8, merged) · `waf-top-ips` (Table, top 8, merged) · `waf-fp-candidates` (Table) · `advisor-security` (Table, 8 + grouped residual) |
+| `seguridad` | `security-severity` (BarList; description carries the secure score or its unavailability) · `security-findings` (Table, 10 + per-severity grouped rows) · `security-surface` (CountTable; includes SQL servers without auditing) · `waf-exposure` (Table, findings only, grouped rows: apps whose public traffic bypasses the WAF) · `infra-exposure` (Table, findings only, grouped rows: infra accepting any-origin traffic) · **WAF sub-report** (all merged across log sources; units: peticiones = distinct requests, eventos = rule matches): `waf-summary` (Table Indicador/Valor/Lectura, 9 fixed rows: data coverage days, requests with detection, blocked (+%), detected-only, allowed/challenged, distinct IPs, attacked hosts, policies by mode, FP candidates — values "—" without logs) · `waf-inventory` (Table: policy, scope gateway·listeners, mode, rule sets, custom/exclusions, requests, blocked — detected count for Detection policies) · `waf-cost` (Table: WAF-fronted gateways priced from costs.json, SKU, protected apps, requests, cost, MoM; description carries total, cost per protected app, Prod apps still outside the WAF) · `waf-daily` (DailyBars: every day of the window, blocked in red, missing days as gaps) · `waf-categories` (BarList, top 10 rule families, 949/980 decision rows excluded) · `waf-top-hosts` (Table, top 8) · `waf-top-rules` (Table, top 8, with category + friendly rule set) · `waf-top-ips` (Table, top 8, with active days + profile Persistente/Intermitente/Ráfaga) · `waf-fp-candidates` (Table, top 10, priority Alta/Media/Baja) · `advisor-security` (Table, 8 + grouped residual) |
 | `fiabilidad` | `backup-gaps` (Table, grouped rows, severity-ranked, with Entorno; the description summarizes family coverage — the per-family coverage table was retired, family totals live in `signals.reliability.families`) · `advisor-reliability` (Table, 8 + grouped residual) |
 | `disponibilidad` | `certificates` (Table, 12 nearest expiry + per-status grouped rows, App Service + App Gateway listeners) · `redundancy` (Table, grouped rows, findings first: level Local/Zona/Regional per resource) |
 | `rendimiento` | `saturated` (Table, with Entorno) · `scaling` (Table, grouped rows, findings first) · `advisor-performance` (Table, 8 + grouped residual) |
@@ -88,7 +88,10 @@ Section ids, block ids, and their order are **FIXED — identical on every run**
 | `Saturado` | ≥ 90% share ≥ 5% of samples OR avg ≥ 80% |
 | `Correcto` | otherwise |
 | Recurso sin uso | disk `diskState == Unattached`; public IP with no `ipConfiguration`/`natGateway`; plan `numberOfSites == 0` |
-| FP WAF candidato | a rule×URI combo holds ≥ 80% of the rule's hits with ≥ 50 events |
+| FP WAF candidato | a rule×URI combo holds ≥ 80% of the rule's events with ≥ 50 events (computed in KQL by stage 5, 949/980 decision rules excluded, allowed traffic skipped); priority `Alta` when the combo has blocked events (users are being rejected), `Media` when only detected (would block in Prevention), `Baja` when only matched (feeds the anomaly score); `distinctIps` is the tie-breaker (many origins = legitimate traffic) |
+| Perfil de IP | `activeDays ≥ 5` → `Persistente` (custom block-rule candidate) · `≥ 2` → `Intermitente` · `1` → `Ráfaga (1 día)` |
+| Cobertura WAF (datos) | `activeDays` = days of the window with ≥ 1 log row; `< monthDays` → the summary row says "Cobertura parcial" and the daily chart shows the gap |
+| Costo WAF | App Gateways with a `firewallPolicy` or `webApplicationFirewallConfiguration.enabled`, Front Door profiles linked from a FD WAF policy (`securityPolicyLinks`) and classic Front Doors with a `webApplicationFirewallPolicyLink`; cost = current-month `costs.json` by ARM id, MoM vs the previous month; protected apps = sites / Container Apps whose hostnames appear in the gateway's backend pools |
 | Certificado | expiry < 0d `Vencido` / ≤ 30d `Crítico` / ≤ 60d `Advertencia` / else OK; App Gateway `publicCertData` parsed as X509, Key Vault refs resolved via the staged data-plane expiry — `No verificable` ONLY when that access was denied |
 
 ### Environment weighting (decided here, never by the narrative)
@@ -120,7 +123,20 @@ Section ids, block ids, and their order are **FIXED — identical on every run**
     "zombieMonthlyCost", "oversizedMonthlyCost",
     "unused": [{ "label", "type", "finding", "monthlyCost" }], "unusedMonthlyCost"
   },
-  "waf": { "present", "totalEvents", "blockedEvents", "topRules": [...], "fpCandidateCount" },
+  "waf": {
+    "present", "coverage": { "activeDays", "monthDays", "firstEvent", "lastEvent" },
+    "totalEvents", "requests", "blockedRequests", "blockedPct", "detectedRequests", "allowedRequests", "challengedRequests",
+    "distinctIps", "distinctHosts", "preventionCount", "detectionCount",
+    "policies": [{ "name", "type", "mode", "state", "scope", "ruleSets", "customRules", "exclusions", "requests", "blockedRequests", "detectedRequests" }],
+    "cost": { "monthlyCost", "previousMonthlyCost", "protectedApps", "costPerProtectedApp", "directProdApps",
+              "gateways": [{ "label", "type", "sku", "protectedApps", "requests", "monthlyCost", "previousMonthlyCost" }] },
+    "peakDay": { "day", "requests", "blockedRequests" } | null,
+    "categories": [{ "key", "label", "requests", "blockedRequests", "detectedRequests" }],
+    "topHosts": [{ "host", "requests", "blockedRequests", "distinctIps" }],
+    "topRules": [{ "rule", "category", "ruleSet", "requests", "blockedRequests", "detectedRequests", "sample" }],
+    "topIps": [{ "ip", "requests", "blockedRequests", "activeDays", "hosts", "profile" }],
+    "fpCandidates": [{ "rule", "uri", "host", "action", "hits", "sharePct", "distinctIps", "priority" }], "fpCandidateCount"
+  },
   "security": {
     "defenderPresent", "secureScorePct", "unhealthyBySeverity": { "high", "medium", "low" },
     "sqlServersEvaluated", "sqlServersWithoutAuditing": [names],

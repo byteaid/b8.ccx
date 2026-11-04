@@ -14,7 +14,8 @@ Stage 9, the pipeline's join point. No Azure calls. Reads `resources.json` (requ
 | Sobredimensionado | idle ≥ 80% OR (avg < 15% AND p95 < 40%) |
 | Saturado | samples ≥ 90% share ≥ 5% OR avg ≥ 80% |
 | Recurso sin uso | unattached disk / unassociated public IP / App Service Plan with 0 sites |
-| Falso positivo WAF (candidato) | one URI holds ≥ 80% of a rule's hits with ≥ 50 events |
+| Falso positivo WAF (candidato) | one URI holds ≥ 80% of a rule's events with ≥ 50 events (heuristic runs in KQL at stage 5; stage 9 merges sources, skips allowed traffic, and sets priority Alta = blocked events / Media = detected only / Baja = matched only) |
+| WAF — unidades y cobertura | peticiones = distinct transaction ids (ataques), eventos = rule matches; `activeDays` (days with logs) vs `monthDays` → "Cobertura parcial" when lower; IP profile Persistente (≥ 5 días) / Intermitente / Ráfaga; WAF cost = WAF-fronted gateways priced by ARM id from `costs.json`, protected apps = apps whose hostnames sit in the gateway backend pools. All WAF figures come from one `WafFacts` build shared by the Seguridad blocks and `signals.waf` |
 | Certificado Vencido / Crítico / Advertencia | expiry < 0d / ≤ 30d / ≤ 60d; App Gateway listener certs parsed from `publicCertData` (X509), Key Vault refs resolved via staged data-plane expiry — No verificable only when access was denied |
 | Backup gap | VM / Azure Files share sin Recovery Services / SQL DB sin LTR / storage sin blob soft delete / App Service sin App Service Backup (env-weighted; NotVerifiable → Informativo); Container Apps sin estado → nunca gap; shares de contenido de Function Apps (site + sufijo hex, incl. huérfanas) → familia propia, nunca gap |
 | Redundancia | level per resource: Local < Zona (zoneRedundant / ZRS / zones / HA ZoneRedundant) < Regional (GRS/GZRS / Cosmos multi-región); Prod + unclassified require ≥ Zona, Dev/Test satisfied by Local |

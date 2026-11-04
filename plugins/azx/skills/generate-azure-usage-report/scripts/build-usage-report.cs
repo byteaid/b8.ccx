@@ -160,6 +160,8 @@ sealed class Model
     public required List<ExposureRow> WafExposure { get; init; }
     public required List<ExposureRow> InfraExposure { get; init; }
     public required List<JsonElement> WafSources { get; init; }
+    public string? WafStart { get; init; }
+    public string? WafEnd { get; init; }
     public required List<JsonElement> AdvisorRecs { get; init; }
     public required bool DefenderPresent { get; init; }
     public required JsonElement? Security { get; init; }
@@ -272,6 +274,8 @@ sealed class Model
             WafExposure = wafExposure,
             InfraExposure = infraExposure,
             WafSources = wafSources,
+            WafStart = wafLogs is { } wl0 ? Helpers.Str(wl0, "start") : null,
+            WafEnd = wafLogs is { } wl1 ? Helpers.Str(wl1, "end") : null,
             AdvisorRecs = advisorRecs,
             DefenderPresent = defenderPresent,
             Security = security,
@@ -1259,137 +1263,151 @@ static class Builders
     // ---- WAF sub-report (blocks inside `seguridad`) ----
     // Fixed skeleton with sources MERGED — block ids never vary with the log mode
     // (AzureDiagnostics vs dedicated tables) or the number of WAF products.
-    static void AddWafBlocks(Model m, List<object> blocks)
+    // Unit discipline: "peticiones" = distinct transactions (what a reader calls
+    // an attack); "eventos" = rule-match log rows (one request fires N rules).
+    // Every figure comes from WafFacts, which signals reuse 1:1.
+    static void AddWafBlocks(Model m, WafFacts w, List<object> blocks)
     {
-        // Inventory from ARM state: WAF policies + App Gateways with embedded (classic) WAF config.
-        var inventory = new List<object?[]>();
-        foreach (var r in m.Resources)
+        // 1. Month summary — the leadership view: how much, how much stopped, how much data.
+        var coverage = !w.HasLogs ? "—" : $"{w.ActiveDays} de {w.MonthDays} días";
+        var coverageNote = !w.HasLogs
+            ? "Sin logs de firewall en el workspace para este mes"
+            : w.ActiveDays < w.MonthDays
+                ? "Cobertura parcial: el workspace solo retiene (o solo recibe) logs de parte del mes; las cifras cubren esos días"
+                : "Días del mes con logs de firewall disponibles";
+        var policyLine = w.Policies.Count == 0 ? "0"
+            : $"{w.Policies.Count} (Prevention {w.PreventionCount} · Detection {w.DetectionCount})";
+        object V(long value) => w.HasLogs ? value : "—";
+        var summaryRows = new List<object?[]>
         {
-            var type = r.Type.ToLowerInvariant();
-            if (type == "microsoft.network/applicationgatewaywebapplicationfirewallpolicies"
-                || type == "microsoft.network/frontdoorwebapplicationfirewallpolicies")
-            {
-                string mode = "—", state = "—";
-                if (r.Properties.ValueKind == JsonValueKind.Object && r.Properties.TryGetProperty("policySettings", out var ps))
-                {
-                    mode = Helpers.Str(ps, "mode") ?? "—";
-                    state = Helpers.Str(ps, "state") ?? Helpers.Str(ps, "enabledState") ?? "—";
-                }
-                inventory.Add(new object?[] { r.Name, r.FriendlyType, mode, state });
-            }
-            else if (type == "microsoft.network/applicationgateways"
-                && r.Properties.ValueKind == JsonValueKind.Object
-                && r.Properties.TryGetProperty("webApplicationFirewallConfiguration", out var wc))
-            {
-                var enabled = wc.TryGetProperty("enabled", out var en) && en.ValueKind == JsonValueKind.True;
-                inventory.Add(new object?[] { r.Name, "App Gateway (WAF integrado)", Helpers.Str(wc, "firewallMode") ?? "—", enabled ? "Enabled" : "Disabled" });
-            }
-        }
-        blocks.Add(Block("waf-inventory", "WAF — Inventario", "Table",
-            m.WafSources.Count == 0 && inventory.Count > 0
-                ? "Hay WAF desplegado pero no se recolectaron logs de firewall (sin workspace o diagnósticos no conectados a Log Analytics) — habilitarlos es el prerrequisito para los bloques de actividad siguientes."
-                : "Políticas WAF y configuraciones WAF clásicas de App Gateway desplegadas, con su modo de operación (Prevention/Detection) y estado.",
-            new { headers = new[] { "Recurso", "Tipo", "Modo", "Estado" }, align = new[] { "l", "l", "c", "c" }, rows = inventory }));
+            new object?[] { "Cobertura de datos", coverage, coverageNote },
+            new object?[] { "Peticiones con detección", V(w.Requests), "Peticiones que activaron al menos una regla del WAF (una petición puede generar varios eventos)" },
+            new object?[] { "Peticiones bloqueadas", w.HasLogs ? $"{w.Blocked:#,0} ({w.BlockedPct:0.0}%)" : "—", "Rechazadas por políticas en Prevention: el WAF cumpliendo su función" },
+            new object?[] { "Peticiones solo detectadas", V(w.Detected), "Registradas por políticas en Detection: habrían sido bloqueadas en Prevention" },
+            new object?[] { "Permitidas tras evaluación", V(w.Allowed + w.Challenged), "Bots verificados permitidos y desafíos JavaScript superados" },
+            new object?[] { "IPs de origen distintas", V(w.DistinctIps), "Orígenes únicos con actividad detectada" },
+            new object?[] { "Aplicaciones con ataques", V(w.DistinctHosts), "Hosts distintos que recibieron peticiones detectadas" },
+            new object?[] { "Políticas WAF", policyLine, "Políticas desplegadas por modo de operación" },
+            new object?[] { "Falsos positivos candidatos", w.HasLogs ? w.FpCandidates.Count : "—", "Reglas concentradas en una sola URI; revisar antes de crear exclusiones" },
+        };
+        blocks.Add(Block("waf-summary", "WAF — Resumen del Mes", "Table",
+            w.HasLogs
+                ? "Lectura rápida del Web Application Firewall en el mes de análisis: volumen de peticiones con detección, cuántas se bloquearon, cobertura de datos y tamaño del inventario."
+                : "Hay WAF desplegado pero no se recolectaron logs de firewall (sin workspace o diagnósticos no conectados a Log Analytics); habilitarlos es el prerrequisito de los bloques de actividad.",
+            new { headers = new[] { "Indicador", "Valor", "Lectura" }, align = new[] { "l", "r", "l" }, widths = new[] { "1.4fr", "auto", "2fr" }, rows = summaryRows }));
 
-        // Events by action, merged across sources, as a bar list.
-        var actionTotals = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-        foreach (var src in m.WafSources)
-            foreach (var r in Rows(src, "byAction"))
-            {
-                var action = Helpers.Str(r, "action") ?? "—";
-                actionTotals[action] = actionTotals.GetValueOrDefault(action, 0) + Hits(r);
-            }
-        blocks.Add(Block("waf-actions", "WAF — Eventos por Acción", "BarList",
-            "Total de eventos WAF por acción durante el mes de análisis, consolidado entre todas las fuentes de logs.",
+        // 2. Inventory tied to activity — each policy with scope, rules, and this month's requests.
+        var inventoryRows = w.Policies.Select(p => (object?[])new object?[]
+        {
+            p.Name, p.Scope, p.Mode, p.RuleSets, p.CustomAndExclusions,
+            w.HasLogs ? p.Requests : "—",
+            !w.HasLogs ? "—" : p.IsDetection ? $"{p.Detected:#,0} (detect.)" : p.Blocked,
+        }).ToList();
+        blocks.Add(Block("waf-inventory", "WAF — Inventario y Actividad por Política", "Table",
+            "Políticas WAF y configuraciones integradas de App Gateway con su alcance (gateway · listeners), modo, conjunto de reglas, reglas personalizadas / exclusiones y la actividad del mes; en políticas en Detection la última columna muestra las peticiones detectadas, que habrían sido bloqueadas en Prevention.",
             new
             {
-                format = "count",
-                rows = actionTotals.OrderByDescending(kv => kv.Value).Select(kv => new
-                {
-                    label = kv.Key,
-                    value = kv.Value,
-                    color = ActionColor(kv.Key),
-                }).ToList(),
-            }));
-
-        // Top rules merged across sources (rule+ruleSet key), capped at 8.
-        var ruleAgg = new Dictionary<(string rule, string set), (long hits, string sample)>();
-        foreach (var src in m.WafSources)
-            foreach (var r in Rows(src, "topRules"))
-            {
-                var key = (Helpers.Str(r, "rule") ?? "—", Helpers.Str(r, "ruleSet") ?? "—");
-                var prev = ruleAgg.GetValueOrDefault(key, (0, ""));
-                ruleAgg[key] = (prev.hits + Hits(r), prev.sample.Length > 0 ? prev.sample : Helpers.Str(r, "sample") ?? "");
-            }
-        blocks.Add(Block("waf-top-rules", "WAF — Reglas más Activadas (Top 8)", "Table",
-            "Las reglas WAF con más activaciones en el período; la columna Ejemplo muestra un mensaje representativo de la regla.",
-            new
-            {
-                headers = new[] { "Regla", "Conjunto", "Eventos", "Ejemplo" },
-                align = new[] { "l", "l", "r", "l" },
-                rows = ruleAgg.OrderByDescending(kv => kv.Value.hits).Take(8)
-                    .Select(kv => (object?[])new object?[] { kv.Key.rule, kv.Key.set, kv.Value.hits, Helpers.TruncateText(kv.Value.sample, 90) }).ToList(),
+                headers = new[] { "Política", "Alcance", "Modo", "Conjunto de reglas", "Custom / Excl.", "Peticiones", "Bloqueadas" },
+                align = new[] { "l", "l", "c", "l", "c", "r", "r" },
+                rows = inventoryRows,
                 dense = true,
             }));
 
-        // Top client IPs merged, capped at 8.
-        var ipAgg = new Dictionary<string, long>(StringComparer.Ordinal);
-        foreach (var src in m.WafSources)
-            foreach (var r in Rows(src, "topClientIps"))
+        // 3. Cost — what the WAF costs vs. how many apps it protects.
+        var costRows = w.Gateways.Select(g => (object?[])new object?[]
+        {
+            g.Label, g.Sku, g.ProtectedApps is null ? "—" : g.ProtectedApps, w.HasLogs ? g.Requests : "—",
+            Helpers.Usd(g.Cost), Helpers.DeltaPct(g.Cost, g.PrevCost),
+        }).ToList();
+        if (w.Gateways.Count > 1)
+            costRows.Add(new object?[]
             {
-                var ip = Helpers.Str(r, "clientIp") ?? "—";
-                ipAgg[ip] = ipAgg.GetValueOrDefault(ip, 0) + Hits(r);
-            }
-        blocks.Add(Block("waf-top-ips", "WAF — IPs de Origen más Frecuentes (Top 8)", "Table",
-            "Las direcciones IP de origen con más eventos WAF en el período, consolidadas entre fuentes.",
+                "Total", "—", w.ProtectedApps, w.HasLogs ? w.Gateways.Sum(g => g.Requests) : "—",
+                Helpers.Usd(w.MonthlyCost), Helpers.DeltaPct(w.MonthlyCost, w.PrevMonthlyCost),
+            });
+        var costNote = w.Gateways.Count == 0
+            ? "No hay gateways con WAF (App Gateway WAF / Front Door con política WAF) en la suscripción."
+            : $"El WAF se factura dentro del gateway (las políticas WAF no tienen costo propio). Costo total {Helpers.Usd(w.MonthlyCost)}/mes" +
+              (w.ProtectedApps > 0 ? $", {Helpers.Usd(w.CostPerProtectedApp)} por aplicación protegida ({w.ProtectedApps})" : ", sin aplicaciones detectadas detrás del WAF") +
+              (w.DirectProdApps > 0 ? $"; {w.DirectProdApps} aplicaciones Prod siguen recibiendo tráfico directo sin WAF." : ".");
+        blocks.Add(Block("waf-cost", "WAF — Costo del Servicio", "Table", costNote,
             new
             {
-                headers = new[] { "IP Cliente", "Eventos" },
-                align = new[] { "l", "r" },
-                rows = ipAgg.OrderByDescending(kv => kv.Value).Take(8)
-                    .Select(kv => (object?[])new object?[] { kv.Key, kv.Value }).ToList(),
+                headers = new[] { "Recurso", "SKU", "Apps protegidas", "Peticiones con detección", "Costo mes", "Variación" },
+                align = new[] { "l", "c", "r", "r", "r", "r" },
+                rows = costRows,
+                dense = true,
             }));
 
-        // False-positive candidates across sources.
-        var fp = m.WafSources.SelectMany(FpCandidates).ToList();
-        blocks.Add(Block("waf-fp-candidates", "WAF — Posibles Falsos Positivos", "Table",
-            "Reglas cuyos eventos se concentran (≥80%) en una sola URI con ≥50 eventos — la firma típica de un falso positivo; revisar antes de crear exclusiones o pasar a Prevention.",
-            new { headers = new[] { "Regla", "URI", "Acción", "Eventos", "% de la regla" }, align = new[] { "l", "l", "c", "r", "r" }, rows = fp }));
-    }
-
-    // Blocked = the WAF doing its job (verde); detect-only actions naranja; else neutral.
-    static string? ActionColor(string action)
-    {
-        var a = action.ToLowerInvariant();
-        if (a.Contains("block")) return "verde";
-        if (a.Contains("match") || a.Contains("detect") || a.Contains("log")) return "naranja";
-        if (a.Contains("allow")) return null;
-        return "azul";
-    }
-
-    // FP heuristic: rule×URI combos holding >=80% of the rule's total hits with >=50 events.
-    static List<object?[]> FpCandidates(JsonElement src)
-    {
-        var ruleTotals = Rows(src, "topRules")
-            .Where(r => Helpers.Str(r, "rule") is not null)
-            .ToDictionary(r => Helpers.Str(r, "rule")!, Hits, StringComparer.Ordinal);
-        var result = new List<object?[]>();
-        foreach (var combo in Rows(src, "topRuleUris"))
-        {
-            var rule = Helpers.Str(combo, "rule");
-            var hits = Hits(combo);
-            if (rule is null || hits < 50 || !ruleTotals.TryGetValue(rule, out var total) || total <= 0) continue;
-            var share = hits * 100.0 / total;
-            if (share < 80) continue;
-            result.Add(new object?[]
+        // 4. Daily trend — bursts vs. background noise, and the data-coverage gap made visible.
+        var peak = w.Days.Where(d => d.HasData).OrderByDescending(d => d.Requests).FirstOrDefault();
+        blocks.Add(Block("waf-daily", "WAF — Peticiones por Día", "DailyBars",
+            w.HasLogs
+                ? $"Peticiones con detección por día del mes (rojo = bloqueadas); los días sin barra no tienen logs en el workspace. Pico: {peak?.Requests ?? 0:#,0} peticiones el {Helpers.DayLabel(peak?.Day)}."
+                : "Peticiones con detección por día del mes; sin logs de firewall en el período.",
+            new
             {
-                rule, Helpers.TruncateText(Helpers.Str(combo, "uri") ?? "—", 60),
-                Helpers.Str(combo, "action") ?? "—", hits,
-                $"{Math.Round(share, 0).ToString(CultureInfo.InvariantCulture)}%",
-            });
-        }
-        return result;
+                days = w.Days.Select(d => new { day = d.Day, label = d.Day.Length >= 10 ? d.Day[8..].TrimStart('0') : d.Day, requests = d.Requests, blocked = d.Blocked, detected = d.Detected, hasData = d.HasData }).ToList(),
+                daysWithoutData = w.Days.Count(d => !d.HasData),
+            }));
+
+        // 5. Attack families — rule ids translated into what a reader understands.
+        blocks.Add(Block("waf-categories", "WAF — Ataques por Categoría", "BarList",
+            "Peticiones con detección agrupadas por familia de reglas (OWASP CRS / DRS / Bot Manager); rojo = ataques de inyección o explotación, naranja = anomalías de protocolo, escáneres y bots no verificados, azul = bots legítimos verificados.",
+            new
+            {
+                format = "count",
+                rows = w.Categories.Take(10).Select(c => new { label = c.Label, value = c.Requests, color = c.Color }).ToList(),
+            }));
+
+        // 6. Attacked applications.
+        blocks.Add(Block("waf-top-hosts", "WAF — Aplicaciones más Atacadas (Top 8)", "Table",
+            "Hosts con más peticiones detectadas en el mes, con la proporción bloqueada y la cantidad de orígenes distintos; un host con muchas IPs y poca proporción bloqueada suele estar detrás de una política en Detection o de un falso positivo.",
+            new
+            {
+                headers = new[] { "Host", "Peticiones", "Bloqueadas", "% bloqueado", "IPs distintas" },
+                align = new[] { "l", "r", "r", "r", "r" },
+                rows = w.Hosts.Take(8).Select(h => (object?[])new object?[] { h.Host, h.Requests, h.Blocked, Helpers.Pct(h.Blocked, h.Requests), h.DistinctIps }).ToList(),
+            }));
+
+        // 7. Rules — with category and friendly rule-set name.
+        blocks.Add(Block("waf-top-rules", "WAF — Reglas más Activadas (Top 8)", "Table",
+            "Reglas con más peticiones detectadas en el mes; la categoría traduce el identificador y la descripción es el mensaje que registra el WAF.",
+            new
+            {
+                headers = new[] { "Regla", "Categoría", "Conjunto", "Peticiones", "Bloqueadas", "Descripción" },
+                align = new[] { "l", "l", "l", "r", "r", "l" },
+                rows = w.Rules.Take(8).Select(r => (object?[])new object?[]
+                    { r.Rule, r.Category, r.RuleSet, r.Requests, r.Blocked, Helpers.TruncateText(r.Sample, 70) }).ToList(),
+                dense = true,
+            }));
+
+        // 8. Source IPs — with persistence profile.
+        blocks.Add(Block("waf-top-ips", "WAF — IPs de Origen más Activas (Top 8)", "Table",
+            "Direcciones IP con más peticiones detectadas; Perfil distingue orígenes persistentes (5 o más días activos, candidatos a regla personalizada de bloqueo) de ráfagas de un día.",
+            new
+            {
+                headers = new[] { "IP", "Peticiones", "Bloqueadas", "Días activos", "Hosts", "Perfil" },
+                align = new[] { "l", "r", "r", "r", "r", "l" },
+                rows = w.Ips.Take(8).Select(i => (object?[])new object?[] { i.Ip, i.Requests, i.Blocked, i.ActiveDays, i.Hosts, i.Profile }).ToList(),
+            }));
+
+        // 9. False-positive candidates — prioritized by real impact.
+        blocks.Add(Block("waf-fp-candidates", "WAF — Posibles Falsos Positivos", "Table",
+            "Reglas cuyos eventos se concentran (≥80%) en una sola URI con ≥50 eventos, la firma típica de un falso positivo; muchas IPs distintas sobre esa URI refuerzan que es tráfico legítimo. Prioridad Alta = la regla está bloqueando ese tráfico; Media = lo bloquearía al pasar a Prevention; Baja = solo suma a la puntuación de anomalía.",
+            new
+            {
+                headers = new[] { "Regla", "URI", "Acción", "Eventos", "% de la regla", "IPs", "Prioridad" },
+                align = new[] { "l", "l", "c", "r", "r", "r", "c" },
+                rows = w.FpCandidates.Take(10).Select(f => (object?[])new object?[]
+                    { f.Rule, Helpers.TruncateText(f.Uri, 60), f.Action, f.Hits, $"{f.SharePct:0}%", f.DistinctIps, f.Priority }).ToList(),
+                dense = true,
+            }));
     }
+
+    internal static long Num64(JsonElement row, string prop) =>
+        row.ValueKind == JsonValueKind.Object && row.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number
+            ? (v.TryGetInt64(out var l) ? l : (long)v.GetDouble()) : 0;
 
     // ---- 2. seguridad ----
     // Defender posture first, then the WAF sub-report (the firewall is part of
@@ -1501,7 +1519,7 @@ static class Builders
                 dense = true,
             }));
 
-        AddWafBlocks(m, blocks);
+        AddWafBlocks(m, WafFacts.Build(m), blocks);
 
         blocks.Add(AdvisorTable(m, "Security", "advisor-security", "Recomendaciones de Seguridad (Azure Advisor)"));
 
@@ -1767,28 +1785,7 @@ static class Builders
         var saturated = m.Utilization.Where(u => u.Classification == "Saturado")
             .Select(u => new { label = u.Label, type = u.FriendlyType, sku = u.Sku, environment = u.Environment, p95Cpu = u.P95Cpu, monthlyCost = u.MonthlyCost }).ToList();
 
-        // WAF signals aggregated across sources.
-        long totalWafEvents = 0, blockedWafEvents = 0;
-        var wafTopRules = new List<object>();
-        var fpCandidateCount = 0;
-        foreach (var src in m.WafSources)
-        {
-            foreach (var row in Rows(src, "byAction"))
-            {
-                var hits = Hits(row);
-                totalWafEvents += hits;
-                var action = (Helpers.Str(row, "action") ?? "").ToLowerInvariant();
-                if (action.Contains("block")) blockedWafEvents += hits;
-            }
-            wafTopRules.AddRange(Rows(src, "topRules").Take(5).Select(r => (object)new
-            {
-                source = Helpers.Str(src, "source"),
-                rule = Helpers.Str(r, "rule"),
-                ruleSet = Helpers.Str(r, "ruleSet"),
-                hits = Hits(r),
-            }));
-            fpCandidateCount += FpCandidates(src).Count;
-        }
+        var w = WafFacts.Build(m);
 
         // Security signals.
         double? secureScorePct = null;
@@ -1849,11 +1846,45 @@ static class Builders
             },
             waf = new
             {
-                present = m.WafSources.Count > 0,
-                totalEvents = totalWafEvents,
-                blockedEvents = blockedWafEvents,
-                topRules = wafTopRules,
-                fpCandidateCount,
+                present = w.HasLogs,
+                coverage = new { activeDays = w.ActiveDays, monthDays = w.MonthDays, firstEvent = w.FirstEvent, lastEvent = w.LastEvent },
+                totalEvents = w.Events,
+                requests = w.Requests,
+                blockedRequests = w.Blocked,
+                blockedPct = w.BlockedPct,
+                detectedRequests = w.Detected,
+                allowedRequests = w.Allowed,
+                challengedRequests = w.Challenged,
+                distinctIps = w.DistinctIps,
+                distinctHosts = w.DistinctHosts,
+                preventionCount = w.PreventionCount,
+                detectionCount = w.DetectionCount,
+                policies = w.Policies.Select(p => new
+                {
+                    name = p.Name, type = p.Type, mode = p.Mode, state = p.State, scope = p.Scope, ruleSets = p.RuleSets,
+                    customRules = p.CustomRules, exclusions = p.Exclusions,
+                    requests = p.Requests, blockedRequests = p.Blocked, detectedRequests = p.Detected,
+                }).ToList(),
+                cost = new
+                {
+                    monthlyCost = w.MonthlyCost,
+                    previousMonthlyCost = w.PrevMonthlyCost,
+                    protectedApps = w.ProtectedApps,
+                    costPerProtectedApp = w.CostPerProtectedApp,
+                    directProdApps = w.DirectProdApps,
+                    gateways = w.Gateways.Select(g => new
+                    {
+                        label = g.Label, type = g.Type, sku = g.Sku, protectedApps = g.ProtectedApps, requests = g.Requests,
+                        monthlyCost = g.Cost, previousMonthlyCost = g.PrevCost,
+                    }).ToList(),
+                },
+                peakDay = w.Days.Where(d => d.HasData).OrderByDescending(d => d.Requests).Select(d => new { day = d.Day, requests = d.Requests, blockedRequests = d.Blocked }).FirstOrDefault(),
+                categories = w.Categories.Select(c => new { key = c.Key, label = c.Label, requests = c.Requests, blockedRequests = c.Blocked, detectedRequests = c.Detected }).ToList(),
+                topHosts = w.Hosts.Take(8).Select(h => new { host = h.Host, requests = h.Requests, blockedRequests = h.Blocked, distinctIps = h.DistinctIps }).ToList(),
+                topRules = w.Rules.Take(8).Select(r => new { rule = r.Rule, category = r.Category, ruleSet = r.RuleSet, requests = r.Requests, blockedRequests = r.Blocked, detectedRequests = r.Detected, sample = r.Sample }).ToList(),
+                topIps = w.Ips.Take(8).Select(i => new { ip = i.Ip, requests = i.Requests, blockedRequests = i.Blocked, activeDays = i.ActiveDays, hosts = i.Hosts, profile = i.Profile }).ToList(),
+                fpCandidates = w.FpCandidates.Select(f => new { rule = f.Rule, uri = f.Uri, host = f.Host, action = f.Action, hits = f.Hits, sharePct = f.SharePct, distinctIps = f.DistinctIps, priority = f.Priority }).ToList(),
+                fpCandidateCount = w.FpCandidates.Count,
             },
             security = new
             {
@@ -2047,10 +2078,6 @@ static class Builders
         return new List<JsonElement>();
     }
 
-    internal static long Hits(JsonElement row) =>
-        row.ValueKind == JsonValueKind.Object && row.TryGetProperty("hits", out var h) && h.ValueKind == JsonValueKind.Number
-            ? h.GetInt64() : 0;
-
     static double Num(JsonElement el, string prop) =>
         el.ValueKind == JsonValueKind.Object && el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number
             ? v.GetDouble() : 0;
@@ -2169,6 +2196,53 @@ static class Helpers
         "Zona" => 1,
         _ => 0,
     };
+
+    // ---- WAF helpers ----
+
+    // Public hostnames of an app (App Service: default + custom host names;
+    // Container App: ingress FQDN) — the key that matches App Gateway backend pools.
+    public static List<string> AppHostnames(ResourceInfo r)
+    {
+        var hostnames = new List<string>();
+        var props = r.Properties;
+        if (props.ValueKind != JsonValueKind.Object) return hostnames;
+        if (r.Type.Equals("microsoft.app/containerapps", StringComparison.OrdinalIgnoreCase))
+        {
+            if (props.TryGetProperty("configuration", out var cfg) && cfg.ValueKind == JsonValueKind.Object
+                && cfg.TryGetProperty("ingress", out var ing) && ing.ValueKind == JsonValueKind.Object
+                && Str(ing, "fqdn") is { Length: > 0 } fqdn)
+                hostnames.Add(fqdn);
+            return hostnames;
+        }
+        if (Str(props, "defaultHostName") is { Length: > 0 } dh) hostnames.Add(dh);
+        foreach (var prop in new[] { "hostNames", "enabledHostNames" })
+            if (props.TryGetProperty(prop, out var hn) && hn.ValueKind == JsonValueKind.Array)
+                foreach (var h in hn.EnumerateArray())
+                    if (h.ValueKind == JsonValueKind.String && h.GetString() is { Length: > 0 } s) hostnames.Add(s);
+        return hostnames;
+    }
+
+    // Month-over-month delta as a signed percentage; "—" when there is no baseline.
+    public static string DeltaPct(double current, double previous)
+    {
+        if (previous <= 0) return "—";
+        var p = (current - previous) / previous * 100;
+        return (p >= 0 ? "+" : "") + p.ToString("0.0", CultureInfo.InvariantCulture) + "%";
+    }
+
+    public static string Pct(long part, long total) =>
+        total <= 0 ? "—" : (part * 100.0 / total).ToString("0.0", CultureInfo.InvariantCulture) + "%";
+
+    static readonly string[] SpanishMonths =
+        { "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre" };
+
+    // "2026-09-21" → "21 de septiembre".
+    public static string DayLabel(string? day) =>
+        day is { Length: >= 10 }
+        && DateTime.TryParseExact(day[..10], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+            ? $"{d.Day} de {SpanishMonths[d.Month - 1]}" : "—";
+
+    public static int PriorityRank(string priority) => priority switch { "Alta" => 0, "Media" => 1, "Baja" => 2, _ => 3 };
 
     // Shared ordering for finding/status tokens: worst first, OK last.
     public static int FindingRank(string status) => status switch
@@ -2345,10 +2419,502 @@ static class Helpers
         return string.Join(' ', words);
     }
 
-    static string LastSegment(string s)
+    public static string LastSegment(string s)
     {
         var idx = s.LastIndexOf('/');
         return idx >= 0 && idx < s.Length - 1 ? s[(idx + 1)..] : s;
+    }
+}
+
+// =====================================================================
+// WAF facts — one deterministic view of the firewall month, consumed by the
+// Seguridad blocks AND by signals.waf so both always agree. Merges every
+// staged log source, joins activity to the ARM inventory (policy id /
+// gateway resource id), prices the gateways from costs.json, and classifies
+// false-positive candidates by their real impact.
+// =====================================================================
+
+sealed class WafPolicyRow(
+    string name, string idLower, string type, string mode, string state, string scope, string ruleSets,
+    int customRules, int exclusions, List<string> gatewayIdsLower)
+{
+    public string Name { get; } = name;
+    public string IdLower { get; } = idLower;
+    public string Type { get; } = type;
+    public string Mode { get; set; } = mode;          // ARM mode; filled from logs (Front Door) when ARM lacks it
+    public string State { get; } = state;
+    public string Scope { get; } = scope;
+    public string RuleSets { get; } = ruleSets;
+    public int CustomRules { get; } = customRules;
+    public int Exclusions { get; } = exclusions;
+    public List<string> GatewayIdsLower { get; } = gatewayIdsLower;
+    public long Requests { get; set; }
+    public long Blocked { get; set; }
+    public long Detected { get; set; }
+    public bool IsDetection => Mode.Equals("Detection", StringComparison.OrdinalIgnoreCase);
+    public string CustomAndExclusions => $"{CustomRules} / {Exclusions}";
+}
+
+sealed record WafGateway(string Label, string Type, string Sku, int? ProtectedApps, double Cost, double PrevCost)
+{
+    public long Requests { get; set; }
+}
+
+sealed record WafDay(string Day, long Requests, long Blocked, long Detected, bool HasData);
+sealed record WafCategory(string Key, string Label, string? Color, long Requests, long Blocked, long Detected);
+sealed record WafHost(string Host, long Requests, long Blocked, long DistinctIps);
+sealed record WafRule(string Rule, string Category, string RuleSet, long Requests, long Blocked, long Detected, long DistinctIps, string Sample);
+sealed record WafIp(string Ip, long Requests, long Blocked, int ActiveDays, long Hosts, string Profile);
+sealed record WafFp(string Rule, string Uri, string Host, string Action, long Hits, double SharePct, long DistinctIps, string Priority);
+
+sealed class WafFacts
+{
+    public bool HasLogs { get; init; }
+    public int MonthDays { get; init; }
+    public int ActiveDays { get; init; }
+    public string? FirstEvent { get; init; }
+    public string? LastEvent { get; init; }
+    public long Events { get; init; }
+    public long Requests { get; init; }
+    public long Blocked { get; init; }
+    public long Detected { get; init; }
+    public long Allowed { get; init; }
+    public long Challenged { get; init; }
+    public long DistinctIps { get; init; }
+    public long DistinctHosts { get; init; }
+    public double BlockedPct => Requests > 0 ? Math.Round(Blocked * 100.0 / Requests, 1) : 0;
+    public required List<WafPolicyRow> Policies { get; init; }
+    public int PreventionCount => Policies.Count(p => p.Mode.Equals("Prevention", StringComparison.OrdinalIgnoreCase));
+    public int DetectionCount => Policies.Count(p => p.IsDetection);
+    public required List<WafGateway> Gateways { get; init; }
+    public double MonthlyCost => Math.Round(Gateways.Sum(g => g.Cost), 2);
+    public double PrevMonthlyCost => Math.Round(Gateways.Sum(g => g.PrevCost), 2);
+    public int ProtectedApps { get; init; }
+    public int DirectProdApps { get; init; }
+    public double CostPerProtectedApp => ProtectedApps > 0 ? Math.Round(MonthlyCost / ProtectedApps, 2) : 0;
+    public required List<WafDay> Days { get; init; }
+    public required List<WafCategory> Categories { get; init; }
+    public required List<WafHost> Hosts { get; init; }
+    public required List<WafRule> Rules { get; init; }
+    public required List<WafIp> Ips { get; init; }
+    public required List<WafFp> FpCandidates { get; init; }
+
+    public static WafFacts Build(Model m)
+    {
+        var srcs = m.WafSources;
+        var hasLogs = srcs.Count > 0;
+
+        // ---- month window + daily series (every day of the window, gaps kept) ----
+        var (winStart, winEnd) = Window(m);
+        var monthDays = Math.Max(1, (int)Math.Round((winEnd - winStart).TotalDays));
+        var dayAgg = new Dictionary<string, (long req, long blk, long det)>(StringComparer.Ordinal);
+        foreach (var src in srcs)
+            foreach (var r in Builders.Rows(src, "dailyTrend"))
+            {
+                var day = Helpers.Str(r, "day") ?? "";
+                if (day.Length < 10) continue;
+                day = day[..10];
+                var prev = dayAgg.GetValueOrDefault(day);
+                dayAgg[day] = (prev.req + Builders.Num64(r, "requests"), prev.blk + Builders.Num64(r, "blockedRequests"), prev.det + Builders.Num64(r, "detectedRequests"));
+            }
+        var days = new List<WafDay>();
+        for (var d = winStart; d < winEnd; d = d.AddDays(1))
+        {
+            var key = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            days.Add(dayAgg.TryGetValue(key, out var v) ? new WafDay(key, v.req, v.blk, v.det, true) : new WafDay(key, 0, 0, 0, false));
+        }
+        var activeDays = days.Count(d => d.HasData);
+
+        // ---- summary totals (additive across sources: different tables = different gateways) ----
+        long events = 0, requests = 0, blocked = 0, detected = 0, allowed = 0, challenged = 0, distinctIps = 0, distinctHosts = 0;
+        string? first = null, last = null;
+        foreach (var src in srcs)
+        {
+            if (!src.TryGetProperty("summary", out var s) || s.ValueKind != JsonValueKind.Object) continue;
+            events += Builders.Num64(s, "events");
+            requests += Builders.Num64(s, "requests");
+            blocked += Builders.Num64(s, "blockedRequests");
+            detected += Builders.Num64(s, "detectedRequests");
+            allowed += Builders.Num64(s, "allowedRequests");
+            challenged += Builders.Num64(s, "challengedRequests");
+            distinctIps += Builders.Num64(s, "distinctIps");
+            distinctHosts += Builders.Num64(s, "distinctHosts");
+            var f = Helpers.Str(s, "firstEvent"); var l = Helpers.Str(s, "lastEvent");
+            if (f is not null && (first is null || string.CompareOrdinal(f, first) < 0)) first = f;
+            if (l is not null && (last is null || string.CompareOrdinal(l, last) > 0)) last = l;
+        }
+
+        // ---- inventory from ARM state ----
+        var policies = BuildPolicies(m);
+        var byGateway = new Dictionary<string, (long req, long blk, long det)>(StringComparer.Ordinal);
+        foreach (var src in srcs)
+            foreach (var r in Builders.Rows(src, "byPolicy"))
+            {
+                var req = Builders.Num64(r, "requests"); var blk = Builders.Num64(r, "blockedRequests"); var det = Builders.Num64(r, "detectedRequests");
+                var gwId = (Helpers.Str(r, "resourceId") ?? "").ToLowerInvariant();
+                if (gwId.Length > 0)
+                {
+                    var prev = byGateway.GetValueOrDefault(gwId);
+                    byGateway[gwId] = (prev.req + req, prev.blk + blk, prev.det + det);
+                }
+                var policyId = (Helpers.Str(r, "policyId") ?? "").Trim();
+                var target = MatchPolicy(policies, policyId, gwId);
+                if (target is null) continue;
+                target.Requests += req; target.Blocked += blk; target.Detected += det;
+                if (target.Mode == "—" && Helpers.Str(r, "mode") is { Length: > 0 } logMode) target.Mode = logMode;
+            }
+
+        // ---- gateways priced from costs.json + protected apps from backend pools ----
+        var gateways = BuildGateways(m, policies);
+        foreach (var g in gateways)
+            if (g.Label is { } && m.ResourceByIdLower.Values.FirstOrDefault(r => r.Name == g.Label && Helpers.FriendlyType(r.Type) == g.Type) is { } res
+                && byGateway.TryGetValue(res.IdLower, out var act))
+                g.Requests = act.req;
+        var protectedApps = m.WafExposure.Count(e => e.Exposure.StartsWith("WAF", StringComparison.Ordinal));
+        var directProd = m.WafExposure.Count(e => e.Finding == "Tráfico directo sin WAF" && e.Environment == "Prod");
+
+        // ---- categories (decision rows 949/980 are not attack families) ----
+        var catAgg = new Dictionary<string, (long req, long blk, long det)>(StringComparer.Ordinal);
+        foreach (var src in srcs)
+            foreach (var r in Builders.Rows(src, "byCategory"))
+            {
+                var key = Helpers.Str(r, "category") ?? "unknown";
+                if (key is "949" or "980") continue;
+                var prev = catAgg.GetValueOrDefault(key);
+                catAgg[key] = (prev.req + Builders.Num64(r, "requests"), prev.blk + Builders.Num64(r, "blockedRequests"), prev.det + Builders.Num64(r, "detectedRequests"));
+            }
+        var categories = catAgg.Select(kv =>
+        {
+            var (label, color) = CategoryInfo(kv.Key);
+            return new WafCategory(kv.Key, label, color, kv.Value.req, kv.Value.blk, kv.Value.det);
+        }).OrderByDescending(c => c.Requests).ThenBy(c => c.Label, StringComparer.Ordinal).ToList();
+
+        // ---- hosts ----
+        var hostAgg = new Dictionary<string, (long req, long blk, long ips)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var src in srcs)
+            foreach (var r in Builders.Rows(src, "byHost"))
+            {
+                var host = Helpers.Str(r, "host") is { Length: > 0 } h ? h : "—";
+                var prev = hostAgg.GetValueOrDefault(host);
+                hostAgg[host] = (prev.req + Builders.Num64(r, "requests"), prev.blk + Builders.Num64(r, "blockedRequests"), Math.Max(prev.ips, Builders.Num64(r, "distinctIps")));
+            }
+        var hosts = hostAgg.Select(kv => new WafHost(kv.Key, kv.Value.req, kv.Value.blk, kv.Value.ips))
+            .OrderByDescending(h => h.Requests).ThenBy(h => h.Host, StringComparer.Ordinal).ToList();
+
+        // ---- rules ----
+        var ruleAgg = new Dictionary<(string rule, string set), (long req, long blk, long det, long ips, string sample, string cat)>();
+        foreach (var src in srcs)
+            foreach (var r in Builders.Rows(src, "topRules"))
+            {
+                var rule = Helpers.Str(r, "rule") ?? "—";
+                var set = FriendlyRuleSet(Helpers.Str(r, "ruleSet"), Helpers.Str(r, "ruleSetVersion"), rule);
+                var key = (rule, set);
+                var prev = ruleAgg.GetValueOrDefault(key, (0, 0, 0, 0, "", ""));
+                var cat = prev.cat.Length > 0 ? prev.cat : CategoryInfo(Helpers.Str(r, "category") ?? CategoryKey(rule, Helpers.Str(r, "ruleSet"))).label;
+                ruleAgg[key] = (prev.req + Builders.Num64(r, "requests"), prev.blk + Builders.Num64(r, "blockedRequests"), prev.det + Builders.Num64(r, "detectedRequests"),
+                    Math.Max(prev.ips, Builders.Num64(r, "distinctIps")), prev.sample.Length > 0 ? prev.sample : Helpers.Str(r, "sample") ?? "", cat);
+            }
+        var rules = ruleAgg.Select(kv => new WafRule(kv.Key.rule, kv.Value.cat, kv.Key.set, kv.Value.req, kv.Value.blk, kv.Value.det, kv.Value.ips, kv.Value.sample))
+            .OrderByDescending(r => r.Requests).ThenBy(r => r.Rule, StringComparer.Ordinal).ToList();
+
+        // ---- IPs ----
+        var ipAgg = new Dictionary<string, (long req, long blk, int days, long hosts)>(StringComparer.Ordinal);
+        foreach (var src in srcs)
+            foreach (var r in Builders.Rows(src, "topClientIps"))
+            {
+                var ip = Helpers.Str(r, "ip") ?? Helpers.Str(r, "clientIp") ?? "—";
+                var prev = ipAgg.GetValueOrDefault(ip);
+                ipAgg[ip] = (prev.req + Builders.Num64(r, "requests"), prev.blk + Builders.Num64(r, "blockedRequests"),
+                    Math.Max(prev.days, (int)Builders.Num64(r, "activeDays")), Math.Max(prev.hosts, Builders.Num64(r, "distinctHosts")));
+            }
+        var ips = ipAgg.Select(kv => new WafIp(kv.Key, kv.Value.req, kv.Value.blk, kv.Value.days, kv.Value.hosts,
+                kv.Value.days >= 5 ? "Persistente" : kv.Value.days >= 2 ? "Intermitente" : "Ráfaga (1 día)"))
+            .OrderByDescending(i => i.Requests).ThenBy(i => i.Ip, StringComparer.Ordinal).ToList();
+
+        // ---- false-positive candidates (server-side heuristic, impact decided here) ----
+        var fpAgg = new Dictionary<(string rule, string uri), (long hits, long total, long blk, long det, long ips, string host, string action)>();
+        foreach (var src in srcs)
+            foreach (var r in Builders.Rows(src, "fpCandidates"))
+            {
+                var rule = Helpers.Str(r, "rule") ?? "—";
+                var uri = Helpers.Str(r, "uri") ?? "—";
+                var key = (rule, uri);
+                var prev = fpAgg.GetValueOrDefault(key, (0, 0, 0, 0, 0, "", ""));
+                fpAgg[key] = (prev.hits + Builders.Num64(r, "hits"), prev.total + Builders.Num64(r, "ruleTotal"),
+                    prev.blk + Builders.Num64(r, "blockedHits"), prev.det + Builders.Num64(r, "detectedHits"),
+                    Math.Max(prev.ips, Builders.Num64(r, "distinctIps")),
+                    prev.host.Length > 0 ? prev.host : Helpers.Str(r, "host") ?? "", prev.action.Length > 0 ? prev.action : Helpers.Str(r, "action") ?? "—");
+            }
+        var fp = new List<WafFp>();
+        foreach (var kv in fpAgg)
+        {
+            var v = kv.Value;
+            var action = v.blk > 0 ? "Blocked" : v.det > 0 ? "Detected" : v.action;
+            if (action.Contains("allow", StringComparison.OrdinalIgnoreCase)) continue;   // allowed traffic is not a false positive
+            var share = v.total > 0 ? Math.Round(v.hits * 100.0 / v.total, 0) : 0;
+            if (v.hits < 50 || share < 80) continue;
+            var priority = v.blk > 0 ? "Alta" : v.det > 0 ? "Media" : "Baja";
+            fp.Add(new WafFp(kv.Key.rule, kv.Key.uri, v.host, action, v.hits, share, v.ips, priority));
+        }
+        fp = fp.OrderBy(f => Helpers.PriorityRank(f.Priority)).ThenByDescending(f => f.Hits).ThenBy(f => f.Rule, StringComparer.Ordinal).ToList();
+
+        return new WafFacts
+        {
+            HasLogs = hasLogs,
+            MonthDays = monthDays,
+            ActiveDays = activeDays,
+            FirstEvent = first,
+            LastEvent = last,
+            Events = events,
+            Requests = requests,
+            Blocked = blocked,
+            Detected = detected,
+            Allowed = allowed,
+            Challenged = challenged,
+            DistinctIps = distinctIps,
+            DistinctHosts = distinctHosts,
+            Policies = policies,
+            Gateways = gateways,
+            ProtectedApps = protectedApps,
+            DirectProdApps = directProd,
+            Days = days,
+            Categories = categories,
+            Hosts = hosts,
+            Rules = rules,
+            Ips = ips,
+            FpCandidates = fp,
+        };
+    }
+
+    // Analysis window: waf-logs.json start/end, else the analysis month, else 30 days.
+    static (DateTime start, DateTime end) Window(Model m)
+    {
+        if (DateTime.TryParse(m.WafStart, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var s)
+            && DateTime.TryParse(m.WafEnd, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var e) && e > s)
+            return (s.Date, e.Date > s.Date ? e.Date : s.Date.AddDays(1));
+        if (m.AnalysisMonth is { Length: >= 7 } am && int.TryParse(am[..4], out var y) && int.TryParse(am[5..7], out var mo))
+        {
+            var start = new DateTime(y, mo, 1, 0, 0, 0, DateTimeKind.Utc);
+            return (start, start.AddMonths(1));
+        }
+        var today = DateTime.UtcNow.Date;
+        return (today.AddDays(-30), today);
+    }
+
+    static WafPolicyRow? MatchPolicy(List<WafPolicyRow> policies, string policyId, string gatewayIdLower)
+    {
+        if (policyId.Length > 0)
+        {
+            var lower = policyId.ToLowerInvariant();
+            var byId = policies.FirstOrDefault(p => p.IdLower == lower);
+            if (byId is not null) return byId;
+            var name = lower.Contains('/') ? lower[(lower.LastIndexOf('/') + 1)..] : lower;
+            var byName = policies.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (byName is not null) return byName;
+        }
+        if (gatewayIdLower.Length == 0) return null;
+        // Embedded (classic) config rows carry the gateway itself as id; otherwise the single policy on that gateway.
+        return policies.FirstOrDefault(p => p.IdLower == gatewayIdLower)
+            ?? (policies.Where(p => p.GatewayIdsLower.Contains(gatewayIdLower)).ToList() is { Count: 1 } one ? one[0] : null);
+    }
+
+    static List<WafPolicyRow> BuildPolicies(Model m)
+    {
+        var rows = new List<WafPolicyRow>();
+        var gatewayNames = m.Resources
+            .Where(r => r.Type.Equals("microsoft.network/applicationgateways", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(r => r.IdLower, r => r.Name, StringComparer.Ordinal);
+
+        foreach (var r in m.Resources)
+        {
+            var type = r.Type.ToLowerInvariant();
+            var props = r.Properties;
+            if (type == "microsoft.network/applicationgatewaywebapplicationfirewallpolicies")
+            {
+                var (mode, state) = PolicySettings(props);
+                var listenerIds = IdList(props, "httpListeners").Concat(IdList(props, "pathBasedRules")).ToList();
+                var listeners = listenerIds.Count;
+                // Gateway-level attachments list the gateway; listener/path attachments only carry
+                // the listener id, whose prefix (â¦/applicationGateways/<name>/â¦) names the gateway.
+                var gwIds = IdList(props, "applicationGateways")
+                    .Concat(listenerIds.Select(id => id.IndexOf("/httplisteners/", StringComparison.Ordinal) is var li && li > 0 ? id[..li]
+                        : id.IndexOf("/urlpathmaps/", StringComparison.Ordinal) is var pi && pi > 0 ? id[..pi] : ""))
+                    .Where(id => id.Length > 0).Distinct().ToList();
+                var gwLabel = gwIds.Count == 0 ? "Sin asociar"
+                    : Helpers.NameList(gwIds.Select(id => gatewayNames.TryGetValue(id, out var n) ? n : Helpers.LastSegment(id)).Distinct().ToList(), 40);
+                var scope = listeners > 0 ? $"{gwLabel} · {listeners} listener(s)" : gwIds.Count > 0 ? $"{gwLabel} · global" : gwLabel;
+                rows.Add(new WafPolicyRow(r.Name, r.IdLower, r.FriendlyType, mode, state, scope, ManagedRuleSets(props),
+                    ArrayCount(props, "customRules"), ExclusionCount(props), gwIds));
+            }
+            else if (type == "microsoft.network/frontdoorwebapplicationfirewallpolicies")
+            {
+                var (mode, state) = PolicySettings(props);
+                var links = IdList(props, "securityPolicyLinks").Count + IdList(props, "frontendEndpointLinks").Count;
+                var custom = props.ValueKind == JsonValueKind.Object && props.TryGetProperty("customRules", out var cr) && cr.ValueKind == JsonValueKind.Object
+                    ? ArrayCount(cr, "rules") : 0;
+                rows.Add(new WafPolicyRow(r.Name, r.IdLower, r.FriendlyType, mode, state,
+                    links > 0 ? $"Front Door · {links} endpoint(s)" : "Sin asociar", ManagedRuleSets(props), custom, ExclusionCount(props), new List<string>()));
+            }
+            else if (type == "microsoft.network/applicationgateways"
+                && props.ValueKind == JsonValueKind.Object
+                && props.TryGetProperty("webApplicationFirewallConfiguration", out var wc) && wc.ValueKind == JsonValueKind.Object)
+            {
+                var enabled = Helpers.BoolProp(wc, "enabled");
+                var set = $"{Helpers.Str(wc, "ruleSetType") ?? "—"} {Helpers.Str(wc, "ruleSetVersion") ?? ""}".Trim();
+                rows.Add(new WafPolicyRow(r.Name, r.IdLower, "App Gateway (WAF integrado)", Helpers.Str(wc, "firewallMode") ?? "—",
+                    enabled ? "Enabled" : "Disabled", "Configuración integrada", FriendlyRuleSet(Helpers.Str(wc, "ruleSetType"), Helpers.Str(wc, "ruleSetVersion"), ""),
+                    0, ArrayCount(wc, "exclusions"), new List<string> { r.IdLower }));
+            }
+        }
+        return rows.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    static (string mode, string state) PolicySettings(JsonElement props)
+    {
+        if (props.ValueKind != JsonValueKind.Object || !props.TryGetProperty("policySettings", out var ps) || ps.ValueKind != JsonValueKind.Object)
+            return ("—", "—");
+        return (Helpers.Str(ps, "mode") ?? "—", Helpers.Str(ps, "state") ?? Helpers.Str(ps, "enabledState") ?? "—");
+    }
+
+    static List<string> IdList(JsonElement props, string prop)
+    {
+        var list = new List<string>();
+        if (props.ValueKind != JsonValueKind.Object || !props.TryGetProperty(prop, out var arr) || arr.ValueKind != JsonValueKind.Array) return list;
+        foreach (var e in arr.EnumerateArray())
+            if (Helpers.Str(e, "id") is { Length: > 0 } id) list.Add(id.ToLowerInvariant());
+        return list;
+    }
+
+    static int ArrayCount(JsonElement props, string prop) =>
+        props.ValueKind == JsonValueKind.Object && props.TryGetProperty(prop, out var arr) && arr.ValueKind == JsonValueKind.Array ? arr.GetArrayLength() : 0;
+
+    static int ExclusionCount(JsonElement props) =>
+        props.ValueKind == JsonValueKind.Object && props.TryGetProperty("managedRules", out var mr) && mr.ValueKind == JsonValueKind.Object
+            ? ArrayCount(mr, "exclusions") : 0;
+
+    static string ManagedRuleSets(JsonElement props)
+    {
+        if (props.ValueKind != JsonValueKind.Object || !props.TryGetProperty("managedRules", out var mr) || mr.ValueKind != JsonValueKind.Object
+            || !mr.TryGetProperty("managedRuleSets", out var sets) || sets.ValueKind != JsonValueKind.Array)
+            return "—";
+        var names = sets.EnumerateArray()
+            .Select(s => FriendlyRuleSet(Helpers.Str(s, "ruleSetType"), Helpers.Str(s, "ruleSetVersion"), ""))
+            .Where(n => n != "—").Distinct().ToList();
+        return names.Count == 0 ? "—" : string.Join(" + ", names);
+    }
+
+    static List<WafGateway> BuildGateways(Model m, List<WafPolicyRow> policies)
+    {
+        var prevMonth = m.Months.Count >= 2 ? m.Months[^2] : null;
+        double Cost(string idLower) => m.CurrentMonthCostById.GetValueOrDefault(idLower, 0);
+        double PrevCost(string idLower) => prevMonth is null ? 0 : m.Costs.Where(c => c.CloudId == idLower && c.Month == prevMonth).Sum(c => c.Value);
+
+        var appHostnames = m.Resources
+            .Where(r => r.Type.Equals("microsoft.web/sites", StringComparison.OrdinalIgnoreCase)
+                     || r.Type.Equals("microsoft.app/containerapps", StringComparison.OrdinalIgnoreCase))
+            .Select(r => Helpers.AppHostnames(r)).Where(h => h.Count > 0).ToList();
+
+        var list = new List<WafGateway>();
+        foreach (var gw in m.Resources.Where(r => r.Type.Equals("microsoft.network/applicationgateways", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (gw.Properties.ValueKind != JsonValueKind.Object) continue;
+            var hasWaf = gw.Properties.TryGetProperty("firewallPolicy", out _)
+                || (gw.Properties.TryGetProperty("webApplicationFirewallConfiguration", out var wc) && Helpers.BoolProp(wc, "enabled"));
+            if (!hasWaf) continue;
+            var fqdns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (gw.Properties.TryGetProperty("backendAddressPools", out var pools) && pools.ValueKind == JsonValueKind.Array)
+                foreach (var pool in pools.EnumerateArray())
+                    if (pool.TryGetProperty("properties", out var pp) && pp.ValueKind == JsonValueKind.Object
+                        && pp.TryGetProperty("backendAddresses", out var addrs) && addrs.ValueKind == JsonValueKind.Array)
+                        foreach (var a in addrs.EnumerateArray())
+                            if (Helpers.Str(a, "fqdn") is { Length: > 0 } fqdn) fqdns.Add(fqdn);
+            var protectedApps = appHostnames.Count(h => h.Any(fqdns.Contains));
+            var sku = gw.SkuName ?? gw.SkuTier ?? "—";
+            if (gw.SkuCapacity is { } cap && cap > 0) sku += $" ×{cap}";
+            list.Add(new WafGateway(gw.Name, gw.FriendlyType, sku, protectedApps, Math.Round(Cost(gw.IdLower), 2), Math.Round(PrevCost(gw.IdLower), 2)));
+        }
+
+        // Front Door: Standard/Premium profiles linked from a FD WAF policy, plus classic Front Doors with a policy link.
+        var fdProfileIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var pol in m.Resources.Where(r => r.Type.Equals("microsoft.network/frontdoorwebapplicationfirewallpolicies", StringComparison.OrdinalIgnoreCase)))
+            foreach (var link in IdList(pol.Properties, "securityPolicyLinks"))
+            {
+                var idx = link.IndexOf("/securitypolicies/", StringComparison.Ordinal);
+                if (idx > 0) fdProfileIds.Add(link[..idx]);
+            }
+        foreach (var r in m.Resources)
+        {
+            var type = r.Type.ToLowerInvariant();
+            var isProfile = type == "microsoft.cdn/profiles" && fdProfileIds.Contains(r.IdLower);
+            var isClassic = type == "microsoft.network/frontdoors" && r.Properties.ValueKind == JsonValueKind.Object
+                && r.Properties.TryGetProperty("frontendEndpoints", out var fes) && fes.ValueKind == JsonValueKind.Array
+                && fes.EnumerateArray().Any(fe => fe.TryGetProperty("properties", out var fp) && fp.ValueKind == JsonValueKind.Object && fp.TryGetProperty("webApplicationFirewallPolicyLink", out _));
+            if (!isProfile && !isClassic) continue;
+            list.Add(new WafGateway(r.Name, isProfile ? "Front Door" : "Front Door (clásico)", r.SkuName ?? r.SkuTier ?? "—", null,
+                Math.Round(Cost(r.IdLower), 2), Math.Round(PrevCost(r.IdLower), 2)));
+        }
+        return list.OrderByDescending(g => g.Cost).ThenBy(g => g.Label, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    // Same key derivation as the KQL stage, for rows that predate the `category` column.
+    static string CategoryKey(string rule, string? ruleSet)
+    {
+        var digits = System.Text.RegularExpressions.Regex.Match(rule ?? "", @"(\d{6,8})\s*$").Groups[1].Value;
+        if (string.IsNullOrEmpty(rule)) return "unknown";
+        if (digits.Length == 0) return "custom:" + rule;
+        var isBot = (ruleSet ?? "").Contains("Bot", StringComparison.OrdinalIgnoreCase) || rule.Contains("Bot", StringComparison.OrdinalIgnoreCase);
+        return (isBot ? "bot:" : "") + (digits.Length == 8 ? digits[..5] : digits[..3]);
+    }
+
+    public static (string label, string? color) CategoryInfo(string key) => key switch
+    {
+        "200" => ("Validación general de la petición", "naranja"),
+        "910" => ("Reputación de IP", "naranja"),
+        "911" => ("Método HTTP no permitido", "naranja"),
+        "912" => ("Protección contra DoS", "naranja"),
+        "913" => ("Escáneres y herramientas de ataque", "naranja"),
+        "920" => ("Violaciones del protocolo HTTP", "naranja"),
+        "921" => ("Ataques al protocolo (smuggling, splitting)", "naranja"),
+        "930" => ("Inclusión de archivos locales (LFI)", "rojo"),
+        "931" => ("Inclusión de archivos remotos (RFI)", "rojo"),
+        "932" => ("Ejecución remota de comandos (RCE)", "rojo"),
+        "933" => ("Inyección PHP", "rojo"),
+        "934" => ("Ataques a Node.js y otros runtimes", "rojo"),
+        "941" => ("Cross-Site Scripting (XSS)", "rojo"),
+        "942" => ("Inyección SQL (SQLi)", "rojo"),
+        "943" => ("Fijación de sesión", "rojo"),
+        "944" => ("Ataques a Java", "rojo"),
+        "949" => ("Decisión por puntuación de anomalía", null),
+        "980" => ("Correlación de anomalía", null),
+        "99001" => ("Vulnerabilidades conocidas (CVE, Microsoft Threat Intel)", "rojo"),
+        "99005" => ("Web shells (Microsoft Threat Intel)", "rojo"),
+        "99030" => ("Ataques a aplicaciones (Microsoft Threat Intel)", "rojo"),
+        "99031" => ("Inyección SQL (Microsoft Threat Intel)", "rojo"),
+        "bot:100" => ("Bots maliciosos (threat intelligence)", "rojo"),
+        "bot:200" => ("Bots legítimos verificados", "azul"),
+        "bot:300" => ("Bots desconocidos / no verificados", "naranja"),
+        "unknown" => ("Sin clasificar", null),
+        _ when key.StartsWith("custom:", StringComparison.Ordinal) => ($"Regla personalizada: {key[7..]}", "naranja"),
+        _ => ($"Categoría {key}", null),
+    };
+
+    // Friendly rule-set label from the set type/version; falls back to the rule name
+    // (Front Door encodes the set in the rule name, e.g. Microsoft_DefaultRuleSet-2.1-SQLI-942100).
+    public static string FriendlyRuleSet(string? set, string? version, string rule)
+    {
+        static string? Known(string s, string v) =>
+            s.Contains("BotManager", StringComparison.OrdinalIgnoreCase) ? "Bot Manager" + v
+            : s.Contains("DefaultRuleSet", StringComparison.OrdinalIgnoreCase) ? "DRS" + v
+            : s.Contains("OWASP", StringComparison.OrdinalIgnoreCase) ? "OWASP CRS" + v
+            : null;
+        var v = string.IsNullOrWhiteSpace(version) ? "" : " " + version.Trim();
+        if (Known(set ?? "", v) is { } fromSet) return fromSet;
+        if (Known(rule ?? "", "") is { } fromRule)
+        {
+            var ver = System.Text.RegularExpressions.Regex.Match(rule!, @"-(\d+\.\d+)-").Groups[1].Value;
+            return ver.Length > 0 ? fromRule + " " + ver : fromRule;
+        }
+        return string.IsNullOrWhiteSpace(set) ? "—" : (set + v).Trim();
     }
 }
 

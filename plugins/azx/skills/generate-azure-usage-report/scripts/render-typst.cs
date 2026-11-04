@@ -537,6 +537,7 @@ static class TypstWriter
             case "CountTable": RenderCountTable(sb, data); break;
             case "Table": RenderTable(sb, data); break;
             case "BarList": RenderBarList(sb, data); break;
+            case "DailyBars": RenderDailyBars(sb, data); break;
             case "Paragraph": RenderParagraph(sb, block); break;
             default:
                 sb.AppendLine($"#text(style: \"italic\")[Tipo de visualización no soportado: {Esc(displayType)}.]");
@@ -650,6 +651,53 @@ static class TypstWriter
         sb.AppendLine();
     }
 
+    // --- DailyBars → one column per day of the analysis window: light = detected
+    //     requests not blocked, rojo = blocked requests; days without logs draw a
+    //     thin grey tick so a retention gap is visible instead of silently zero. ---
+    static void RenderDailyBars(StringBuilder sb, JsonElement data)
+    {
+        var days = data.TryGetProperty("days", out var d) && d.ValueKind == JsonValueKind.Array
+            ? d.EnumerateArray().ToList() : new List<JsonElement>();
+        bool HasData(JsonElement x) => x.TryGetProperty("hasData", out var hd) && hd.ValueKind == JsonValueKind.True;
+        if (days.Count == 0 || !days.Any(HasData)) { Empty(sb); return; }
+
+        var max = Math.Max(days.Max(x => Num(x, "requests")), 1);
+        const double H = 46;
+        static string F(double v) => v.ToString("0.0", CultureInfo.InvariantCulture);
+
+        sb.AppendLine("#block(width: 100%, fill: color-panel.lighten(40%), inset: 10pt, radius: 5pt)[");
+        sb.AppendLine("#grid(");
+        sb.AppendLine($"  columns: ({string.Join(", ", Enumerable.Repeat("1fr", days.Count))}),");
+        sb.AppendLine("  column-gutter: 1.5pt,");
+        sb.AppendLine("  row-gutter: 3pt,");
+        sb.AppendLine("  align: center + bottom,");
+        foreach (var day in days)
+        {
+            if (!HasData(day)) { sb.AppendLine("  [#box(width: 100%, height: 1pt, fill: color-secondary.lighten(70%))],"); continue; }
+            var req = Num(day, "requests");
+            var blk = Math.Min(Num(day, "blocked"), req);
+            var total = Math.Max(req / max * H, req > 0 ? 1.5 : 0.5);
+            var blocked = req > 0 ? blk / req * total : 0;
+            sb.AppendLine($"  [#stack(dir: ttb, spacing: 0pt, box(width: 100%, height: {F(total - blocked)}pt, fill: color-primary.lighten(50%), radius: (top: 1pt)), box(width: 100%, height: {F(blocked)}pt, fill: rojo-alerta.lighten(10%)))],");
+        }
+        for (var i = 0; i < days.Count; i++)
+        {
+            var label = Str(days[i], "label") ?? "";
+            var show = days.Count <= 12 || i == 0 || (int.TryParse(label, out var dn) && dn % 5 == 0);
+            sb.AppendLine(show ? $"  [#text(size: 6.5pt, fill: color-secondary.lighten(20%))[{Esc(label)}]]," : "  [],");
+        }
+        sb.AppendLine(")");
+        sb.AppendLine("#v(4pt)");
+        var without = data.TryGetProperty("daysWithoutData", out var dw) && dw.ValueKind == JsonValueKind.Number ? dw.GetInt64() : 0;
+        var legend = $"#box(width: 7pt, height: 7pt, fill: rojo-alerta.lighten(10%), radius: 1pt) bloqueadas #h(8pt) " +
+                     $"#box(width: 7pt, height: 7pt, fill: color-primary.lighten(50%), radius: 1pt) detectadas sin bloquear #h(8pt) " +
+                     $"máx. {((long)max).ToString("#,0", CultureInfo.InvariantCulture)} peticiones/día" +
+                     (without > 0 ? $" #h(8pt) {without} día(s) sin logs" : "");
+        sb.AppendLine($"#text(size: 7.5pt, fill: color-secondary.lighten(20%))[{legend}]");
+        sb.AppendLine("]");
+        sb.AppendLine();
+    }
+
     // --- GroupedMonthly ---
     static void RenderGroupedMonthly(StringBuilder sb, ReportModel m, JsonElement data)
     {
@@ -715,7 +763,7 @@ static class TypstWriter
         sb.AppendLine();
     }
 
-    // --- Generic Table: { headers[], align[], rows[][], dense? } ---
+    // --- Generic Table: { headers[], align[], rows[][], dense?, widths? } ---
     // Status tokens (Alta/Crítico/Zombie/OK/…) are colored via StatusColor.
     static void RenderTable(StringBuilder sb, JsonElement data)
     {
@@ -741,7 +789,12 @@ static class TypstWriter
             var a = align.Count == headers.Count ? align[i] : "l";
             return a == "l" ? (i == 0 ? "1.6fr" : "1fr") : "auto";
         }
-        var cols = string.Join(", ", headers.Select((_, i) => ColSpec(i)));
+        // An explicit `widths` array (Typst track sizes, one per header) overrides the heuristic.
+        var widths = data.TryGetProperty("widths", out var wd) && wd.ValueKind == JsonValueKind.Array
+            ? wd.EnumerateArray().Select(x => x.GetString() ?? "auto").ToList() : new List<string>();
+        var cols = widths.Count == headers.Count
+            ? string.Join(", ", widths)
+            : string.Join(", ", headers.Select((_, i) => ColSpec(i)));
         sb.AppendLine($"#table(\n  columns: ({cols}),");
         if (align.Count == headers.Count)
         {
